@@ -11,7 +11,7 @@ class Issue3315 {
 
     @Test
     fun test() {
-        JSON.register(TestImp::class.java, TestReader())
+        JSON.register(TestInterface::class.java, TestReader())
         val wrapper = TestWrapper(
             listOf(
                 TestImp("test1"),
@@ -21,8 +21,7 @@ class Issue3315 {
         val json = JSON.toJSONString(wrapper)
         val wrapper2 = JSON.parseObject(json, TestWrapper::class.java)
         wrapper2.list.forEach {
-            println(it::class.qualifiedName)
-            it.read()
+            Assertions.assertEquals(TestImp::class.qualifiedName, it::class.qualifiedName)
         }
         Assertions.assertEquals(wrapper, wrapper2)
     }
@@ -41,7 +40,7 @@ private interface TestInterface {
 
 }
 
-private class TestImp(
+private data class TestImp(
     override val name: String
 ) : TestInterface {
 
@@ -54,12 +53,17 @@ private class TestImp(
 private class TestReader : ObjectReader<TestImp> {
 
     override fun readObject(
-        jsonReader: JSONReader?,
+        jsonReader: JSONReader,
         fieldType: Type?,
         fieldName: Any?,
         features: Long
     ): TestImp? {
-        return TestImp("test reader")
+        if (jsonReader.nextIfNull()) return null
+        jsonReader.nextIfObjectStart()
+        jsonReader.readFieldName()
+        val name = jsonReader.readString()
+        jsonReader.nextIfObjectEnd()
+        return TestImp(name)
     }
 
 }
