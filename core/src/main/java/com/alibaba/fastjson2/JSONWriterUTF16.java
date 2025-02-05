@@ -20,12 +20,16 @@ import java.util.UUID;
 
 import static com.alibaba.fastjson2.JSONFactory.*;
 import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+import static com.alibaba.fastjson2.JSONWriterUTF8.noneEscaped;
 import static com.alibaba.fastjson2.util.IOUtils.*;
 import static com.alibaba.fastjson2.util.JDKUtils.*;
 import static com.alibaba.fastjson2.util.TypeUtils.*;
 
 class JSONWriterUTF16
         extends JSONWriter {
+    static final long BYTE_VEC_64_SINGLE_QUOTE = 0x00270027_00270027L;
+    static final long BYTE_VEC_64_DOUBLE_QUOTE = 0x00220022_00220022L;
+
     static final long REF_0, REF_1;
     static final int QUOTE2_COLON, QUOTE_COLON;
     static final int[] HEX256;
@@ -60,6 +64,7 @@ class JSONWriterUTF16
 
     protected char[] chars;
     final CacheItem cacheItem;
+    protected final long byteVectorQuote;
 
     JSONWriterUTF16(Context ctx) {
         super(ctx, null, false, StandardCharsets.UTF_16);
@@ -70,6 +75,7 @@ class JSONWriterUTF16
             chars = new char[8192];
         }
         this.chars = chars;
+        this.byteVectorQuote = this.useSingleQuote ? ~0x2727_2727_2727_2727L : ~0x2222_2222_2222_2222L;
     }
 
     public final void writeNull() {
@@ -79,7 +85,7 @@ class JSONWriterUTF16
         if (minCapacity > chars.length) {
             chars = grow(minCapacity);
         }
-        UNSAFE.putLong(chars, ARRAY_CHAR_BASE_OFFSET + ((long) off << 1), NULL_64);
+        putNULL(chars, off);
         this.off = off + 4;
     }
 
@@ -271,13 +277,25 @@ class JSONWriterUTF16
         final char[] chars = this.chars;
         chars[off++] = quote;
 
-        for (byte c : value) {
-            if (c == '\\' || c == quote || c < ' ') {
-                escape = true;
-                break;
-            }
+        int i = 0;
+        final long vecQuote = this.byteVectorQuote;
+        final int upperBound = (value.length - i) & ~7;
+        long vec64;
+        for (; i < upperBound && noneEscaped(vec64 = getLongLE(value, i), vecQuote); i += 8) {
+            IOUtils.putLongLE(chars, off, expand(vec64));
+            IOUtils.putLongLE(chars, off + 4, expand(vec64 >>> 32));
+            off += 8;
+        }
+        if (!escape) {
+            for (; i < value.length; i++) {
+                byte c = value[i];
+                if (c == '\\' || c == quote || c < ' ') {
+                    escape = true;
+                    break;
+                }
 
-            chars[off++] = (char) c;
+                chars[off++] = (char) c;
+            }
         }
 
         if (!escape) {
@@ -288,6 +306,10 @@ class JSONWriterUTF16
 
         this.off = start;
         writeStringEscape(value);
+    }
+
+    static long expand(long i) {
+        return (i & 0xFFL) | ((i & 0xFF00L) << 8) | ((i & 0xFF0000L) << 16) | ((i & 0xFF000000L) << 24);
     }
 
     protected final void writeStringLatin1BrowserSecure(byte[] value) {
@@ -327,7 +349,52 @@ class JSONWriterUTF16
             return;
         }
 
-        boolean browserSecure = (context.features & BrowserSecure.mask) != 0;
+        if ((context.features & (BrowserSecure.mask | EscapeNoneAscii.mask)) != 0) {
+            writeStringUTF16BrowserSecure(value);
+            return;
+        }
+
+        boolean escape = false;
+        int off = this.off;
+        int minCapacity = off + value.length + 2;
+        if (minCapacity >= chars.length) {
+            grow(minCapacity);
+        }
+
+        final long vecQuote = this.byteVectorQuote;
+        final char[] chars = this.chars;
+        chars[off++] = quote;
+        for (int i = 0, char_len = value.length >> 1; i < char_len;) {
+            if (i + 8 < char_len) {
+                long v0 = getLongLE(value, i << 1);
+                long v1 = getLongLE(value, (i + 4) << 1);
+                if (((v0 | v1) & 0xFF00FF00FF00FF00L) == 0 && noneEscaped((v0 << 8) | v1, vecQuote)) {
+                    putLongLE(chars, off, v0);
+                    putLongLE(chars, off + 4, v1);
+                    i += 8;
+                    off += 8;
+                    continue;
+                }
+            }
+            char c = getChar(value, i++);
+            if (c == '\\' || c == quote || c < ' ') {
+                escape = true;
+                break;
+            }
+
+            chars[off++] = c;
+        }
+
+        if (!escape) {
+            chars[off] = quote;
+            this.off = off + 1;
+            return;
+        }
+
+        writeStringEscapeUTF16(value);
+    }
+
+    final void writeStringBrowserSecure(char[] value) {
         boolean escapeNoneAscii = (context.features & EscapeNoneAscii.mask) != 0;
 
         boolean escape = false;
@@ -339,13 +406,54 @@ class JSONWriterUTF16
 
         final char[] chars = this.chars;
         chars[off++] = quote;
-
-        for (int i = 0; i < value.length; i += 2) {
-            char c = UNSAFE.getChar(value, (long) Unsafe.ARRAY_BYTE_BASE_OFFSET + i);
+        for (int i = 0, char_len = value.length; i < char_len; i++) {
+            char c = getChar(value, i);
             if (c == '\\'
                     || c == quote
                     || c < ' '
-                    || (browserSecure && (c == '<' || c == '>' || c == '(' || c == ')'))
+                    || c == '<'
+                    || c == '>'
+                    || c == '('
+                    || c == ')'
+                    || (escapeNoneAscii && c > 0x007F)
+            ) {
+                escape = true;
+                break;
+            }
+
+            chars[off++] = c;
+        }
+
+        if (!escape) {
+            chars[off] = quote;
+            this.off = off + 1;
+            return;
+        }
+
+        writeStringEscape(value);
+    }
+
+    final void writeStringUTF16BrowserSecure(byte[] value) {
+        boolean escapeNoneAscii = (context.features & EscapeNoneAscii.mask) != 0;
+
+        boolean escape = false;
+        int off = this.off;
+        int minCapacity = off + value.length + 2;
+        if (minCapacity >= chars.length) {
+            grow(minCapacity);
+        }
+
+        final char[] chars = this.chars;
+        chars[off++] = quote;
+        for (int i = 0, char_len = value.length >> 1; i < char_len; i++) {
+            char c = getChar(value, i);
+            if (c == '\\'
+                    || c == quote
+                    || c < ' '
+                    || c == '<'
+                    || c == '>'
+                    || c == '('
+                    || c == ')'
                     || (escapeNoneAscii && c > 0x007F)
             ) {
                 escape = true;
@@ -431,33 +539,12 @@ class JSONWriterUTF16
                     chars[off++] = ch;
                     break;
                 case '\\':
-                    chars[off] = '\\';
-                    chars[off + 1] = ch;
-                    off += 2;
-                    break;
                 case '\r':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'r';
-                    off += 2;
-                    break;
                 case '\n':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'n';
-                    off += 2;
-                    break;
                 case '\b':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'b';
-                    off += 2;
-                    break;
                 case '\f':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'f';
-                    off += 2;
-                    break;
                 case '\t':
-                    chars[off] = '\\';
-                    chars[off + 1] = 't';
+                    writeEscapedChar(chars, off, ch);
                     off += 2;
                     break;
                 case 0:
@@ -468,25 +555,9 @@ class JSONWriterUTF16
                 case 5:
                 case 6:
                 case 7:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '0';
-                    chars[off + 5] = (char) ('0' + (int) ch);
-                    off += 6;
-                    break;
                 case 11:
                 case 14:
                 case 15:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '0';
-                    chars[off + 5] = (char) ('a' + (ch - 10));
-                    off += 6;
-                    break;
                 case 16:
                 case 17:
                 case 18:
@@ -497,26 +568,13 @@ class JSONWriterUTF16
                 case 23:
                 case 24:
                 case 25:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '1';
-                    chars[off + 5] = (char) ('0' + (ch - 16));
-                    off += 6;
-                    break;
                 case 26:
                 case 27:
                 case 28:
                 case 29:
                 case 30:
                 case 31:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '1';
-                    chars[off + 5] = (char) ('a' + (ch - 26));
+                    writeU4Hex2(chars, off, ch);
                     off += 6;
                     break;
                 case '<':
@@ -524,12 +582,7 @@ class JSONWriterUTF16
                 case '(':
                 case ')':
                     if (browserSecure) {
-                        chars[off] = '\\';
-                        chars[off + 1] = 'u';
-                        chars[off + 2] = '0';
-                        chars[off + 3] = '0';
-                        chars[off + 4] = DIGITS[(ch >>> 4) & 15];
-                        chars[off + 5] = DIGITS[ch & 15];
+                        writeU4HexU(chars, off, ch);
                         off += 6;
                     } else {
                         chars[off++] = ch;
@@ -537,12 +590,7 @@ class JSONWriterUTF16
                     break;
                 default:
                     if (escapeNoneAscii && ch > 0x007F) {
-                        chars[off] = '\\';
-                        chars[off + 1] = 'u';
-                        chars[off + 2] = DIGITS[(ch >>> 12) & 15];
-                        chars[off + 3] = DIGITS[(ch >>> 8) & 15];
-                        chars[off + 4] = DIGITS[(ch >>> 4) & 15];
-                        chars[off + 5] = DIGITS[ch & 15];
+                        writeU4HexU(chars, off, ch);
                         off += 6;
                     } else {
                         chars[off++] = ch;
@@ -576,33 +624,12 @@ class JSONWriterUTF16
                     chars[off++] = ch;
                     break;
                 case '\\':
-                    chars[off] = '\\';
-                    chars[off + 1] = ch;
-                    off += 2;
-                    break;
                 case '\r':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'r';
-                    off += 2;
-                    break;
                 case '\n':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'n';
-                    off += 2;
-                    break;
                 case '\b':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'b';
-                    off += 2;
-                    break;
                 case '\f':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'f';
-                    off += 2;
-                    break;
                 case '\t':
-                    chars[off] = '\\';
-                    chars[off + 1] = 't';
+                    writeEscapedChar(chars, off, ch);
                     off += 2;
                     break;
                 case 0:
@@ -613,25 +640,9 @@ class JSONWriterUTF16
                 case 5:
                 case 6:
                 case 7:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '0';
-                    chars[off + 5] = (char) ('0' + (int) ch);
-                    off += 6;
-                    break;
                 case 11:
                 case 14:
                 case 15:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '0';
-                    chars[off + 5] = (char) ('a' + (ch - 10));
-                    off += 6;
-                    break;
                 case 16:
                 case 17:
                 case 18:
@@ -642,26 +653,13 @@ class JSONWriterUTF16
                 case 23:
                 case 24:
                 case 25:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '1';
-                    chars[off + 5] = (char) ('0' + (ch - 16));
-                    off += 6;
-                    break;
                 case 26:
                 case 27:
                 case 28:
                 case 29:
                 case 30:
                 case 31:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '1';
-                    chars[off + 5] = (char) ('a' + (ch - 26));
+                    writeU4Hex2(chars, off, ch);
                     off += 6;
                     break;
                 case '<':
@@ -669,12 +667,7 @@ class JSONWriterUTF16
                 case '(':
                 case ')':
                     if (browserSecure) {
-                        chars[off] = '\\';
-                        chars[off + 1] = 'u';
-                        chars[off + 2] = '0';
-                        chars[off + 3] = '0';
-                        chars[off + 4] = DIGITS[(ch >>> 4) & 15];
-                        chars[off + 5] = DIGITS[ch & 15];
+                        writeU4HexU(chars, off, ch);
                         off += 6;
                     } else {
                         chars[off++] = ch;
@@ -682,12 +675,7 @@ class JSONWriterUTF16
                     break;
                 default:
                     if (escapeNoneAscii && ch > 0x007F) {
-                        chars[off] = '\\';
-                        chars[off + 1] = 'u';
-                        chars[off + 2] = DIGITS[(ch >>> 12) & 15];
-                        chars[off + 3] = DIGITS[(ch >>> 8) & 15];
-                        chars[off + 4] = DIGITS[(ch >>> 4) & 15];
-                        chars[off + 5] = DIGITS[ch & 15];
+                        writeU4HexU(chars, off, ch);
                         off += 6;
                     } else {
                         chars[off++] = ch;
@@ -721,33 +709,12 @@ class JSONWriterUTF16
                     chars[off++] = ch;
                     break;
                 case '\\':
-                    chars[off] = '\\';
-                    chars[off + 1] = ch;
-                    off += 2;
-                    break;
                 case '\r':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'r';
-                    off += 2;
-                    break;
                 case '\n':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'n';
-                    off += 2;
-                    break;
                 case '\b':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'b';
-                    off += 2;
-                    break;
                 case '\f':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'f';
-                    off += 2;
-                    break;
                 case '\t':
-                    chars[off] = '\\';
-                    chars[off + 1] = 't';
+                    writeEscapedChar(chars, off, ch);
                     off += 2;
                     break;
                 case 0:
@@ -758,25 +725,9 @@ class JSONWriterUTF16
                 case 5:
                 case 6:
                 case 7:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '0';
-                    chars[off + 5] = (char) ('0' + (int) ch);
-                    off += 6;
-                    break;
                 case 11:
                 case 14:
                 case 15:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '0';
-                    chars[off + 5] = (char) ('a' + (ch - 10));
-                    off += 6;
-                    break;
                 case 16:
                 case 17:
                 case 18:
@@ -787,26 +738,13 @@ class JSONWriterUTF16
                 case 23:
                 case 24:
                 case 25:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '1';
-                    chars[off + 5] = (char) ('0' + (ch - 16));
-                    off += 6;
-                    break;
                 case 26:
                 case 27:
                 case 28:
                 case 29:
                 case 30:
                 case 31:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '1';
-                    chars[off + 5] = (char) ('a' + (ch - 26));
+                    writeU4Hex2(chars, off, ch);
                     off += 6;
                     break;
                 case '<':
@@ -814,12 +752,7 @@ class JSONWriterUTF16
                 case '(':
                 case ')':
                     if (browserSecure) {
-                        chars[off] = '\\';
-                        chars[off + 1] = 'u';
-                        chars[off + 2] = '0';
-                        chars[off + 3] = '0';
-                        chars[off + 4] = DIGITS[(ch >>> 4) & 15];
-                        chars[off + 5] = DIGITS[ch & 15];
+                        writeU4HexU(chars, off, ch);
                         off += 6;
                     } else {
                         chars[off++] = ch;
@@ -827,12 +760,7 @@ class JSONWriterUTF16
                     break;
                 default:
                     if (escapeNoneAscii && ch > 0x007F) {
-                        chars[off] = '\\';
-                        chars[off + 1] = 'u';
-                        chars[off + 2] = DIGITS[(ch >>> 12) & 15];
-                        chars[off + 3] = DIGITS[(ch >>> 8) & 15];
-                        chars[off + 4] = DIGITS[(ch >>> 4) & 15];
-                        chars[off + 5] = DIGITS[ch & 15];
+                        writeU4HexU(chars, off, ch);
                         off += 6;
                     } else {
                         chars[off++] = ch;
@@ -867,33 +795,12 @@ class JSONWriterUTF16
                     chars[off++] = ch;
                     break;
                 case '\\':
-                    chars[off] = '\\';
-                    chars[off + 1] = ch;
-                    off += 2;
-                    break;
                 case '\r':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'r';
-                    off += 2;
-                    break;
                 case '\n':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'n';
-                    off += 2;
-                    break;
                 case '\b':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'b';
-                    off += 2;
-                    break;
                 case '\f':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'f';
-                    off += 2;
-                    break;
                 case '\t':
-                    chars[off] = '\\';
-                    chars[off + 1] = 't';
+                    writeEscapedChar(chars, off, ch);
                     off += 2;
                     break;
                 case 0:
@@ -904,25 +811,9 @@ class JSONWriterUTF16
                 case 5:
                 case 6:
                 case 7:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '0';
-                    chars[off + 5] = (char) ('0' + (int) ch);
-                    off += 6;
-                    break;
                 case 11:
                 case 14:
                 case 15:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '0';
-                    chars[off + 5] = (char) ('a' + (ch - 10));
-                    off += 6;
-                    break;
                 case 16:
                 case 17:
                 case 18:
@@ -933,26 +824,13 @@ class JSONWriterUTF16
                 case 23:
                 case 24:
                 case 25:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '1';
-                    chars[off + 5] = (char) ('0' + (ch - 16));
-                    off += 6;
-                    break;
                 case 26:
                 case 27:
                 case 28:
                 case 29:
                 case 30:
                 case 31:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '1';
-                    chars[off + 5] = (char) ('a' + (ch - 26));
+                    writeU4Hex2(chars, off, ch);
                     off += 6;
                     break;
                 case '<':
@@ -960,12 +838,7 @@ class JSONWriterUTF16
                 case '(':
                 case ')':
                     if (browserSecure) {
-                        chars[off] = '\\';
-                        chars[off + 1] = 'u';
-                        chars[off + 2] = '0';
-                        chars[off + 3] = '0';
-                        chars[off + 4] = DIGITS[(ch >>> 4) & 15];
-                        chars[off + 5] = DIGITS[ch & 15];
+                        writeU4HexU(chars, off, ch);
                         off += 6;
                     } else {
                         chars[off++] = ch;
@@ -973,12 +846,7 @@ class JSONWriterUTF16
                     break;
                 default:
                     if (escapeNoneAscii && ch > 0x007F) {
-                        chars[off] = '\\';
-                        chars[off + 1] = 'u';
-                        chars[off + 2] = '0';
-                        chars[off + 3] = '0';
-                        chars[off + 4] = DIGITS[(ch >>> 4) & 15];
-                        chars[off + 5] = DIGITS[ch & 15];
+                        writeU4HexU(chars, off, ch);
                         off += 6;
                     } else {
                         chars[off++] = ch;
@@ -1023,33 +891,12 @@ class JSONWriterUTF16
                     chars[off++] = ch;
                     break;
                 case '\\':
-                    chars[off] = '\\';
-                    chars[off + 1] = ch;
-                    off += 2;
-                    break;
                 case '\r':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'r';
-                    off += 2;
-                    break;
                 case '\n':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'n';
-                    off += 2;
-                    break;
                 case '\b':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'b';
-                    off += 2;
-                    break;
                 case '\f':
-                    chars[off] = '\\';
-                    chars[off + 1] = 'f';
-                    off += 2;
-                    break;
                 case '\t':
-                    chars[off] = '\\';
-                    chars[off + 1] = 't';
+                    writeEscapedChar(chars, off, ch);
                     off += 2;
                     break;
                 case 0:
@@ -1060,25 +907,9 @@ class JSONWriterUTF16
                 case 5:
                 case 6:
                 case 7:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '0';
-                    chars[off + 5] = (char) ('0' + (int) ch);
-                    off += 6;
-                    break;
                 case 11:
                 case 14:
                 case 15:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '0';
-                    chars[off + 5] = (char) ('a' + (ch - 10));
-                    off += 6;
-                    break;
                 case 16:
                 case 17:
                 case 18:
@@ -1089,36 +920,18 @@ class JSONWriterUTF16
                 case 23:
                 case 24:
                 case 25:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '1';
-                    chars[off + 5] = (char) ('0' + (ch - 16));
-                    off += 6;
-                    break;
                 case 26:
                 case 27:
                 case 28:
                 case 29:
                 case 30:
                 case 31:
-                    chars[off] = '\\';
-                    chars[off + 1] = 'u';
-                    chars[off + 2] = '0';
-                    chars[off + 3] = '0';
-                    chars[off + 4] = '1';
-                    chars[off + 5] = (char) ('a' + (ch - 26));
+                    writeU4Hex2(chars, off, ch);
                     off += 6;
                     break;
                 default:
                     if (escapeNoneAscii && ch > 0x007F) {
-                        chars[off] = '\\';
-                        chars[off + 1] = 'u';
-                        chars[off + 2] = DIGITS[(ch >>> 12) & 15];
-                        chars[off + 3] = DIGITS[(ch >>> 8) & 15];
-                        chars[off + 4] = DIGITS[(ch >>> 4) & 15];
-                        chars[off + 5] = DIGITS[ch & 15];
+                        writeU4HexU(chars, off, ch);
                         off += 6;
                     } else {
                         chars[off++] = ch;
@@ -1432,33 +1245,12 @@ class JSONWriterUTF16
                 chars[off++] = ch;
                 break;
             case '\\':
-                chars[off] = '\\';
-                chars[off + 1] = ch;
-                off += 2;
-                break;
             case '\r':
-                chars[off] = '\\';
-                chars[off + 1] = 'r';
-                off += 2;
-                break;
             case '\n':
-                chars[off] = '\\';
-                chars[off + 1] = 'n';
-                off += 2;
-                break;
             case '\b':
-                chars[off] = '\\';
-                chars[off + 1] = 'b';
-                off += 2;
-                break;
             case '\f':
-                chars[off] = '\\';
-                chars[off + 1] = 'f';
-                off += 2;
-                break;
             case '\t':
-                chars[off] = '\\';
-                chars[off + 1] = 't';
+                writeEscapedChar(chars, off, ch);
                 off += 2;
                 break;
             case 0:
@@ -2503,13 +2295,13 @@ class JSONWriterUTF16
         }
         int y01 = year / 100;
         int y23 = year - y01 * 100;
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 1) << 1), PACKED_DIGITS_UTF16[y01]);
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 3) << 1), PACKED_DIGITS_UTF16[y23]);
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 5) << 1), PACKED_DIGITS_UTF16[month]);
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 7) << 1), PACKED_DIGITS_UTF16[dayOfMonth]);
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 9) << 1), PACKED_DIGITS_UTF16[hour]);
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 11) << 1), PACKED_DIGITS_UTF16[minute]);
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 13) << 1), PACKED_DIGITS_UTF16[second]);
+        writeDigitPair(chars, off + 1, y01);
+        writeDigitPair(chars, off + 3, y23);
+        writeDigitPair(chars, off + 5, month);
+        writeDigitPair(chars, off + 7, dayOfMonth);
+        writeDigitPair(chars, off + 9, hour);
+        writeDigitPair(chars, off + 11, minute);
+        writeDigitPair(chars, off + 13, second);
         chars[off + 15] = quote;
         this.off = off + 16;
     }
@@ -2618,13 +2410,13 @@ class JSONWriterUTF16
             final int rem1 = millis - div * 10;
 
             if (rem1 != 0) {
-                IOUtils.putLong(chars, off, (DIGITS_K_64[millis] & 0xffffffffffff0000L) | DOT_X0);
+                IOUtils.putLongLE(chars, off, (DIGITS_K_64[millis & 0x3ff] & 0xffffffffffff0000L) | DOT_X0);
                 off += 4;
             } else {
                 chars[off++] = '.';
                 final int rem2 = div - div2 * 10;
                 if (rem2 != 0) {
-                    UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) off << 1), PACKED_DIGITS_UTF16[div]);
+                    writeDigitPair(chars, off, div);
                     off += 2;
                 } else {
                     chars[off++] = (char) (byte) (div2 + '0');
@@ -2639,13 +2431,13 @@ class JSONWriterUTF16
             } else {
                 int offsetAbs = Math.abs(offset);
                 chars[off] = offset >= 0 ? '+' : '-';
-                UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 1) << 1), PACKED_DIGITS_UTF16[offsetAbs]);
+                writeDigitPair(chars, off + 1, offsetAbs);
                 chars[off + 3] = ':';
                 int offsetMinutes = (offsetSeconds - offset * 3600) / 60;
                 if (offsetMinutes < 0) {
                     offsetMinutes = -offsetMinutes;
                 }
-                UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 4) << 1), PACKED_DIGITS_UTF16[offsetMinutes]);
+                writeDigitPair(chars, off + 4, offsetMinutes);
                 off += 6;
             }
         }
@@ -2667,10 +2459,10 @@ class JSONWriterUTF16
         }
         int y01 = year / 100;
         int y23 = year - y01 * 100;
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 1) << 1), PACKED_DIGITS_UTF16[y01]);
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 3) << 1), PACKED_DIGITS_UTF16[y23]);
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 5) << 1), PACKED_DIGITS_UTF16[month]);
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 7) << 1), PACKED_DIGITS_UTF16[dayOfMonth]);
+        writeDigitPair(chars, off + 1, y01);
+        writeDigitPair(chars, off + 3, y23);
+        writeDigitPair(chars, off + 5, month);
+        writeDigitPair(chars, off + 7, dayOfMonth);
         chars[off + 9] = quote;
         this.off = off + 10;
     }
@@ -2698,11 +2490,11 @@ class JSONWriterUTF16
             chars = grow(minCapacity);
         }
         chars[off] = (char) (byte) quote;
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 1) << 1), PACKED_DIGITS_UTF16[hour]);
+        writeDigitPair(chars, off + 1, hour);
         chars[off + 3] = ':';
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 4) << 1), PACKED_DIGITS_UTF16[minute]);
+        writeDigitPair(chars, off + 4, minute);
         chars[off + 6] = ':';
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) (off + 7) << 1), PACKED_DIGITS_UTF16[second]);
+        writeDigitPair(chars, off + 7, second);
         chars[off + 9] = (char) (byte) quote;
         this.off = off + 10;
     }
@@ -3178,45 +2970,55 @@ class JSONWriterUTF16
         chars[off++] = quote;
     }
 
-    public final void writeString(final char[] str) {
-        if (str == null) {
+    public final void writeString(final char[] value) {
+        if (value == null) {
             writeStringNull();
             return;
         }
 
-        boolean browserSecure = (context.features & BrowserSecure.mask) != 0;
-        boolean special = (context.features & EscapeNoneAscii.mask) != 0;
-        for (int i = 0; i < str.length; i++) {
-            char c = str[i];
-            if (c == '\\' || c == quote || c < ' ') {
-                special = true;
-                break;
-            }
-
-            if (browserSecure && (c == '<' || c == '>' || c == '(' || c == ')')) {
-                special = true;
-                break;
-            }
+        if ((context.features & (BrowserSecure.mask | EscapeNoneAscii.mask)) != 0) {
+            writeStringBrowserSecure(value);
+            return;
         }
 
-        if (!special) {
-            // inline ensureCapacity
-            int off = this.off;
-            int minCapacity = off + str.length + 2;
-            char[] chars = this.chars;
-            if (minCapacity > chars.length) {
-                chars = grow(minCapacity);
+        boolean escape = false;
+        int off = this.off;
+        int minCapacity = off + value.length + 2;
+        if (minCapacity >= chars.length) {
+            grow(minCapacity);
+        }
+
+        final long vecQuote = this.byteVectorQuote;
+        final char[] chars = this.chars;
+        chars[off++] = quote;
+        for (int i = 0, char_len = value.length; i < char_len;) {
+            if (i + 8 < char_len) {
+                long v0 = getLongLE(value, i);
+                long v1 = getLongLE(value, i + 4);
+                if (((v0 | v1) & 0xFF00FF00FF00FF00L) == 0 && noneEscaped((v0 << 8) | v1, vecQuote)) {
+                    putLongLE(chars, off, v0);
+                    putLongLE(chars, off + 4, v1);
+                    i += 8;
+                    off += 8;
+                    continue;
+                }
+            }
+            char c = getChar(value, i++);
+            if (c == '\\' || c == quote || c < ' ') {
+                escape = true;
+                break;
             }
 
-            chars[off++] = quote;
-            System.arraycopy(str, 0, chars, off, str.length);
-            off += str.length;
+            chars[off++] = c;
+        }
+
+        if (!escape) {
             chars[off] = quote;
             this.off = off + 1;
             return;
         }
 
-        writeStringEscape(str);
+        writeStringEscape(value);
     }
 
     public final void writeString(char[] str, int coff, int len) {
@@ -3281,5 +3083,47 @@ class JSONWriterUTF16
             }
         }
         this.off = off;
+    }
+
+    private static final int U2;
+    private static final long U4;
+    private static final int[] ESCAPED_CHARS;
+    static {
+        {
+            char[] bytes = "\\u00".toCharArray();
+            U2 = UNSAFE.getInt(bytes, ARRAY_BYTE_BASE_OFFSET);
+            U4 = UNSAFE.getLong(bytes, ARRAY_BYTE_BASE_OFFSET);
+        }
+        {
+            char[] mapping = new char[] {
+                    '\\', '\\',
+                    '\n', 'n',
+                    '\r', 'r',
+                    '\f', 'f',
+                    '\b', 'b',
+                    '\t', 't'
+            };
+            char[] buf = {'\\', '\0'};
+            int[] shorts = new int[128];
+            for (int i = 0; i < mapping.length; i += 2) {
+                buf[1] = mapping[i + 1];
+                shorts[mapping[i]] = IOUtils.getIntUnaligned(buf, 0);
+            }
+            ESCAPED_CHARS = shorts;
+        }
+    }
+
+    static void writeEscapedChar(char[] chars, int off, int c0) {
+        IOUtils.putIntUnaligned(chars, off, ESCAPED_CHARS[c0 & 0x7f]);
+    }
+
+    static void writeU4Hex2(char[] chars, int off, int c) {
+        IOUtils.putLongUnaligned(chars, off, U4);
+        IOUtils.putIntLE(chars, off + 4, utf16Hex2(c));
+    }
+
+    static void writeU4HexU(char[] chars, int off, int c) {
+        IOUtils.putIntUnaligned(chars, off, U2);
+        IOUtils.putLongLE(chars, off + 2, utf16Hex4U(c));
     }
 }

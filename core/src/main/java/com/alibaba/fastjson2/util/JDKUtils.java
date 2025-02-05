@@ -317,6 +317,9 @@ public class JDKUtils {
                     initErrorLast = e;
                 }
             }
+            if (isAscii == null) {
+                isAscii = JDKUtils::isASCII;
+            }
 
             PREDICATE_IS_ASCII = isAscii;
         }
@@ -505,5 +508,25 @@ public class JDKUtils {
         }
 
         return IMPL_LOOKUP.in(objectClass);
+    }
+
+    public static String asciiStringJDK8(byte[] bytes, int offset, int strlen) {
+        char[] chars = new char[strlen];
+        for (int i = 0; i < strlen; ++i) {
+            chars[i] = (char) bytes[offset + i];
+        }
+        return STRING_CREATOR_JDK8.apply(chars, Boolean.TRUE);
+    }
+
+    public static String latin1StringJDK8(byte[] bytes, int offset, int strlen) {
+        char[] chars = new char[strlen];
+        for (int i = 0; i < strlen; ++i) {
+            chars[i] = (char) (bytes[offset + i] & 0xff);
+        }
+        return STRING_CREATOR_JDK8.apply(chars, Boolean.TRUE);
+    }
+
+    static boolean isASCII(byte[] chars) {
+        return IOUtils.isASCII(chars, 0, chars.length);
     }
 }

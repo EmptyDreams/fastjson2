@@ -12,14 +12,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
-import static com.alibaba.fastjson2.util.IOUtils.*;
-import static com.alibaba.fastjson2.util.JDKUtils.*;
+import static com.alibaba.fastjson2.util.IOUtils.putByte;
 
 final class CSVWriterUTF8
         extends CSVWriter {
-    static final byte[] BYTES_TRUE = "true".getBytes();
-    static final byte[] BYTES_FALSE = "false".getBytes();
-    static final byte[] BYTES_LONG_MIN = "-9223372036854775808".getBytes();
+    private static final short DOUBLE_QUOTE_2_LATIN1 = 0x22 | (0x22 << 8);
 
     final OutputStream out;
     final Charset charset;
@@ -47,33 +44,31 @@ final class CSVWriterUTF8
 
     public void writeComma() {
         checkCapacity(1);
-        bytes[off++] = ',';
+        putByte(bytes, off++, (byte) ',');
     }
 
     protected void writeQuote() {
         checkCapacity(1);
-        bytes[off++] = '"';
+        putByte(bytes, off++, (byte) '"');
     }
 
     public void writeLine() {
         checkCapacity(1);
-        bytes[off++] = '\n';
+        putByte(bytes, off++, (byte) '\n');
     }
 
-    public void writeBoolean(boolean booleanValue) {
-        byte[] valueBytes = booleanValue ? BYTES_TRUE : BYTES_FALSE;
-        writeRaw(valueBytes);
+    public void writeBoolean(boolean v) {
+        checkCapacity(5);
+        this.off = IOUtils.putBoolean(this.bytes, off, v);
     }
 
     public void writeInt64(long longValue) {
         checkCapacity(20); // -9223372036854775808
-
         off = IOUtils.writeInt64(bytes, off, longValue);
     }
 
     public void writeDateYYYMMDD10(int year, int month, int dayOfMonth) {
         checkCapacity(10);
-
         off = IOUtils.writeLocalDate(bytes, off, year, month, dayOfMonth);
     }
 
@@ -90,12 +85,8 @@ final class CSVWriterUTF8
         final byte[] bytes = this.bytes;
         int off = this.off;
         off = IOUtils.writeLocalDate(bytes, off, year, month, dayOfMonth);
-        bytes[off] = ' ';
-        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 1, PACKED_DIGITS[hour]);
-        bytes[off + 3] = ':';
-        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 4, PACKED_DIGITS[minute]);
-        bytes[off + 6] = ':';
-        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 7, PACKED_DIGITS[second]);
+        putByte(bytes, off, (byte) ' ');
+        IOUtils.writeLocalTime(bytes, off + 1, hour, minute, second);
         this.off = off + 9;
     }
 
@@ -181,21 +172,20 @@ final class CSVWriterUTF8
         final int max = bytes.length - 2;
         int off = this.off;
 
-        bytes[off++] = '"';
+        putByte(bytes, off++, (byte) '"');
         for (byte ch : utf8) {
             if (ch == '"') {
-                bytes[off] = '"';
-                bytes[off + 1] = '"';
+                IOUtils.putShortUnaligned(bytes, off, DOUBLE_QUOTE_2_LATIN1);
                 off += 2;
             } else {
-                bytes[off++] = ch;
+                putByte(bytes, off++, ch);
             }
             if (off >= max) {
                 flush();
                 off = this.off;
             }
         }
-        bytes[off++] = '"';
+        putByte(bytes, off++, (byte) '"');
         this.off = off;
     }
 
@@ -270,7 +260,7 @@ final class CSVWriterUTF8
             off = 0;
         }
         off = IOUtils.writeLocalDate(bytes, off, ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth());
-        bytes[off++] = ' ';
+        putByte(bytes, off++, (byte) ' ');
         this.off = IOUtils.writeLocalTime(bytes, off, ldt.toLocalTime());
     }
 

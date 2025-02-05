@@ -6,7 +6,7 @@
 
     <groupId>com.alibaba.fastjson2</groupId>
     <artifactId>fastjson2-parent</artifactId>
-    <version>2.0.54-SNAPSHOT</version>
+    <version>2.0.55-SNAPSHOT</version>
     <name>${project.artifactId}</name>
     <description>Fastjson is a JSON processor (JSON parser + JSON generator) written in Java</description>
     <packaging>pom</packaging>
@@ -53,7 +53,7 @@
         <!-- https://kotlinlang.org/docs/maven.html#specifying-compiler-options -->
         <kotlin.compiler.apiVersion>1.9</kotlin.compiler.apiVersion>
 
-        <junit5.version>5.11.0</junit5.version>
+        <junit5.version>5.11.4</junit5.version>
         <kotest.version>5.5.5</kotest.version>
         <jmh.version>1.37</jmh.version>
 
@@ -62,28 +62,14 @@
     </properties>
 
     <modules>
-        <!--
-        <module>adapter</module>
-        -->
         <module>benchmark</module>
-        <module>codegen</module>
-        <module>codegen-test</module>
         <module>core</module>
-        <!--
-            <module>example-graalvm-native</module>
-        -->
         <module>example-solon-test</module>
         <module>example-spring-test</module>
-        <!--
-            <module>example-spring6-test</module>
-        -->
         <module>extension</module>
         <module>extension-jaxrs</module>
         <module>extension-solon</module>
         <module>extension-spring5</module>
-        <!--
-        <module>extension-spring6</module>
-        -->
         <module>fastjson1-compatible</module>
         <module>kotlin</module>
         <module>safemode-test</module>
@@ -294,7 +280,7 @@
             <dependency>
                 <groupId>io.projectreactor</groupId>
                 <artifactId>reactor-core</artifactId>
-                <version>3.6.9</version>
+                <version>3.7.1</version>
             </dependency>
             <dependency>
                 <groupId>io.springfox</groupId>
@@ -674,7 +660,7 @@
             <plugin>
                 <groupId>org.gaul</groupId>
                 <artifactId>modernizer-maven-plugin</artifactId>
-                <version>2.9.0</version>
+                <version>3.0.0</version>
                 <configuration>
                     <violationsFiles>
                         <violationsFile>${maven.multiModuleProjectDirectory}/src/violations.xml</violationsFile>
@@ -761,7 +747,7 @@
                 </plugin>
                 <plugin>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>3.10.0</version>
+                    <version>3.11.2</version>
                 </plugin>
                 <plugin>
                     <artifactId>maven-surefire-plugin</artifactId>
@@ -1030,8 +1016,17 @@
                 <module>example-graalvm-native</module>
                 <module>extension-spring6</module>
                 <module>example-spring6-test</module>
-                <module>incubator-vector</module>
                 <module>test-jdk17</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>enable-codegen</id>
+            <activation>
+                <jdk>(,22]</jdk>
+            </activation>
+            <modules>
+                <module>codegen</module>
+                <module>codegen-test</module>
             </modules>
         </profile>
         <profile>

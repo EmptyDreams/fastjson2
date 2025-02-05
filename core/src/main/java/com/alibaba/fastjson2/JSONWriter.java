@@ -29,7 +29,6 @@ import static com.alibaba.fastjson2.util.TypeUtils.isJavaScriptSupport;
 public abstract class JSONWriter
         implements Closeable {
     static final long WRITE_ARRAY_NULL_MASK = NullAsDefaultValue.mask | WriteNullListAsEmpty.mask;
-    static final char[] DIGITS = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
     static final byte PRETTY_NON = 0, PRETTY_TAB = 1, PRETTY_2_SPACE = 2, PRETTY_4_SPACE = 4;
     static final long NONE_DIRECT_FEATURES = ReferenceDetection.mask | NotWriteEmptyArray.mask | NotWriteDefaultValue.mask;
 
@@ -547,19 +546,9 @@ public abstract class JSONWriter
                 jsonWriter = new JSONWriterUTF16JDK8(writeContext);
             }
         } else if ((defaultWriterFeatures & OptimizedForAscii.mask) != 0) {
-            if (STRING_VALUE != null) {
-                if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {
-                    jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(writeContext);
-                } else {
-                    jsonWriter = new JSONWriterUTF8JDK9(writeContext);
-                }
-            } else {
-                jsonWriter = new JSONWriterUTF8(writeContext);
-            }
+            jsonWriter = ofUTF8(writeContext);
         } else {
-            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF16 != null) {
-                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF16.apply(writeContext);
-            } else if (FIELD_STRING_VALUE != null && STRING_CODER != null && STRING_VALUE != null) {
+            if (FIELD_STRING_VALUE != null && STRING_CODER != null && STRING_VALUE != null) {
                 jsonWriter = new JSONWriterUTF16JDK9UF(writeContext);
             } else {
                 jsonWriter = new JSONWriterUTF16(writeContext);
@@ -588,17 +577,13 @@ public abstract class JSONWriter
             }
         } else if ((context.features & OptimizedForAscii.mask) != 0) {
             if (STRING_VALUE != null) {
-                if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {
-                    jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(context);
-                } else {
-                    jsonWriter = new JSONWriterUTF8JDK9(context);
-                }
+                jsonWriter = new JSONWriterUTF8JDK9(context);
             } else {
                 jsonWriter = new JSONWriterUTF8(context);
             }
         } else {
-            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF16 != null) {
-                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF16.apply(context);
+            if (FIELD_STRING_VALUE != null && STRING_CODER != null && STRING_VALUE != null) {
+                jsonWriter = new JSONWriterUTF16JDK9UF(context);
             } else {
                 jsonWriter = new JSONWriterUTF16(context);
             }
@@ -617,18 +602,10 @@ public abstract class JSONWriter
                 jsonWriter = new JSONWriterUTF16JDK8(writeContext);
             }
         } else if ((writeContext.features & OptimizedForAscii.mask) != 0) {
-            if (STRING_VALUE != null) {
-                if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {
-                    jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(writeContext);
-                } else {
-                    jsonWriter = new JSONWriterUTF8JDK9(writeContext);
-                }
-            } else {
-                jsonWriter = new JSONWriterUTF8(writeContext);
-            }
+            jsonWriter = ofUTF8(writeContext);
         } else {
-            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF16 != null) {
-                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF16.apply(writeContext);
+            if (FIELD_STRING_VALUE != null && STRING_CODER != null && STRING_VALUE != null) {
+                jsonWriter = new JSONWriterUTF16JDK9UF(writeContext);
             } else {
                 jsonWriter = new JSONWriterUTF16(writeContext);
             }
@@ -647,8 +624,8 @@ public abstract class JSONWriter
                 jsonWriter = new JSONWriterUTF16JDK8(writeContext);
             }
         } else {
-            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF16 != null) {
-                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF16.apply(writeContext);
+            if (FIELD_STRING_VALUE != null && STRING_CODER != null && STRING_VALUE != null) {
+                jsonWriter = new JSONWriterUTF16JDK9UF(writeContext);
             } else {
                 jsonWriter = new JSONWriterUTF16(writeContext);
             }
@@ -699,51 +676,21 @@ public abstract class JSONWriter
     }
 
     public static JSONWriter ofUTF8() {
-        Context context = createWriteContext();
-        JSONWriter jsonWriter;
-        if (STRING_VALUE != null) {
-            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {
-                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(context);
-            } else {
-                jsonWriter = new JSONWriterUTF8JDK9(context);
-            }
-        } else {
-            jsonWriter = new JSONWriterUTF8(context);
-        }
-
-        return jsonWriter;
+        return ofUTF8(
+                createWriteContext()
+        );
     }
 
     public static JSONWriter ofUTF8(JSONWriter.Context context) {
-        JSONWriter jsonWriter;
-        if (STRING_VALUE != null) {
-            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {
-                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(context);
-            } else {
-                jsonWriter = new JSONWriterUTF8JDK9(context);
-            }
-        } else {
-            jsonWriter = new JSONWriterUTF8(context);
-        }
-
-        return jsonWriter;
+        return STRING_VALUE != null
+                ? new JSONWriterUTF8JDK9(context)
+                : new JSONWriterUTF8(context);
     }
 
     public static JSONWriter ofUTF8(Feature... features) {
-        Context context = createWriteContext(features);
-
-        JSONWriter jsonWriter;
-        if (STRING_VALUE != null) {
-            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {
-                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(context);
-            } else {
-                jsonWriter = new JSONWriterUTF8JDK9(context);
-            }
-        } else {
-            jsonWriter = new JSONWriterUTF8(context);
-        }
-
-        return jsonWriter;
+        return ofUTF8(
+                createWriteContext(features)
+        );
     }
 
     public void writeBinary(byte[] bytes) {

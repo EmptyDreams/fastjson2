@@ -447,9 +447,10 @@ public class DateUtils {
     }
 
     public static LocalTime parseLocalTime8(byte[] bytes, int off) {
-        return off + 8 > bytes.length || bytes[off + 2] != ':' || bytes[off + 5] != ':'
+        long hms;
+        return off + 8 > bytes.length || (hms = hms(bytes, off)) == -1L
                 ? null
-                : localTime(digit2(bytes, off), digit2(bytes, off + 3), digit2(bytes, off + 6));
+                : LocalTime.of((int) hms & 0xFF, (int) (hms >> 24) & 0xFF, (int) (hms >> 48) & 0xFF);
     }
 
     public static LocalTime parseLocalTime8(char[] bytes, int off) {
@@ -545,19 +546,18 @@ public class DateUtils {
     }
 
     public static LocalTime parseLocalTime11(byte[] str, int off) {
-        if (off + 11 > str.length || str[off + 2] != ':' || str[off + 5] != ':' || str[off + 8] != '.') {
+        long hms;
+        if (off + 11 > str.length || (hms = hms(str, off)) == -1L || str[off + 8] != '.') {
             return null;
         } else {
-            int hour = digit2(str, off);
-            int minute = digit2(str, off + 3);
-            int second = digit2(str, off + 6);
+            int hour = (int) hms & 0xFF;
+            int minute = (int) (hms >> 24) & 0xFF;
+            int second = (int) (hms >> 48) & 0xFF;
             int millis = digit2(str, off + 9);
             if (millis > 0) {
                 millis *= 10000000;
             }
-            return ((hour | minute | second | minute) < 0)
-                    ? null
-                    : LocalTime.of(hour, minute, second, millis);
+            return LocalTime.of(hour, minute, second, millis);
         }
     }
 
@@ -579,19 +579,18 @@ public class DateUtils {
     }
 
     public static LocalTime parseLocalTime12(byte[] str, int off) {
-        if (off + 12 > str.length || str[off + 2] != ':' || str[off + 5] != ':' || str[off + 8] != '.') {
+        long hms;
+        if (off + 12 > str.length || (hms = hms(str, off)) == -1L || str[off + 8] != '.') {
             return null;
         } else {
-            int hour = digit2(str, off);
-            int minute = digit2(str, off + 3);
-            int second = digit2(str, off + 6);
+            int hour = (int) hms & 0xFF;
+            int minute = (int) (hms >> 24) & 0xFF;
+            int second = (int) (hms >> 48) & 0xFF;
             int millis = digit3(str, off + 9);
             if (millis > 0) {
                 millis *= 1000000;
             }
-            return ((hour | minute | second | minute) < 0)
-                    ? null
-                    : LocalTime.of(hour, minute, second, millis);
+            return LocalTime.of(hour, minute, second, millis);
         }
     }
 
@@ -613,16 +612,15 @@ public class DateUtils {
     }
 
     public static LocalTime parseLocalTime18(byte[] str, int off) {
-        if (off + 18 > str.length || str[off + 2] != ':' || str[off + 5] != ':' || str[off + 8] != '.') {
+        long hms;
+        if (off + 18 > str.length || (hms = hms(str, off)) == -1L || str[off + 8] != '.') {
             return null;
         }
-        int hour = digit2(str, off);
-        int minute = digit2(str, off + 3);
-        int second = digit2(str, off + 6);
+        int hour = (int) hms & 0xFF;
+        int minute = (int) (hms >> 24) & 0xFF;
+        int second = (int) (hms >> 48) & 0xFF;
         int nanos = readNanos(str, 9, off + 9);
-        return (hour | minute | second | nanos) < 0
-                ? null
-                : LocalTime.of(hour, minute, second, nanos);
+        return nanos < 0 ? null : LocalTime.of(hour, minute, second, nanos);
     }
 
     public static LocalTime parseLocalTime18(char[] str, int off) {
@@ -802,12 +800,7 @@ public class DateUtils {
             return 0;
         }
 
-        if (len == 4
-                && chars[off] == 'n'
-                && chars[off + 1] == 'u'
-                && chars[off + 2] == 'l'
-                && chars[off + 3] == 'l'
-        ) {
+        if (len == 4 && isNULL(chars, off)) {
             return 0;
         }
 
@@ -873,16 +866,8 @@ public class DateUtils {
             LocalDateTime ldt = DateUtils.parseLocalDateTime(chars, off, len);
             if (ldt == null
                     // && "0000-00-00".equals(str)
-                    && chars[off] == '0'
-                    && chars[off + 1] == '0'
-                    && chars[off + 2] == '0'
-                    && chars[off + 3] == '0'
-                    && chars[off + 4] == '-'
-                    && chars[off + 5] == '0'
-                    && chars[off + 6] == '0'
-                    && chars[off + 7] == '-'
-                    && chars[off + 8] == '0'
-                    && chars[off + 9] == '0'
+                    && getLongLE(chars, off) == 0x2d30302d30303030L
+                    && getShortLE(chars, off + 8) == 0x3030
             ) {
                 ldt = LocalDateTime.of(1970, 1, 1, 0, 0, 0);
             }
@@ -907,12 +892,7 @@ public class DateUtils {
             return 0;
         }
 
-        if (len == 4
-                && chars[off] == 'n'
-                && chars[off + 1] == 'u'
-                && chars[off + 2] == 'l'
-                && chars[off + 3] == 'l'
-        ) {
+        if (len == 4 && isNULL(chars, off)) {
             return 0;
         }
 
@@ -979,16 +959,9 @@ public class DateUtils {
             LocalDateTime ldt = DateUtils.parseLocalDateTime(chars, off, len);
             if (ldt == null
                     // && "0000-00-00".equals(str)
-                    && chars[off] == '0'
-                    && chars[off + 1] == '0'
-                    && chars[off + 2] == '0'
-                    && chars[off + 3] == '0'
-                    && chars[off + 4] == '-'
-                    && chars[off + 5] == '0'
-                    && chars[off + 6] == '0'
-                    && chars[off + 7] == '-'
-                    && chars[off + 8] == '0'
-                    && chars[off + 9] == '0'
+                    && getLongLE(chars, off) == 0x30003000300030L
+                    && getLongLE(chars, off + 4) == 0x2d00300030002dL
+                    && getIntLE(chars, off + 8) == 0x300030L
             ) {
                 ldt = LocalDateTime.of(1970, 1, 1, 0, 0, 0);
             }
@@ -1080,7 +1053,7 @@ public class DateUtils {
         } else if (c1 == '-' && str[off + 5] == '-') {
             // d-MMM-yy
             dom = digit1(str, off);
-            month = DateUtils.month((char) str[off + 2], c3, c4);
+            month = DateUtils.month(str[off + 2], c3, c4);
             year = digit2(str, off + 6);
             if (year != -1) {
                 year += 2000;
@@ -1320,7 +1293,6 @@ public class DateUtils {
         char c9 = str[off + 9];
 
         int year, month, dom;
-        char y0, y1, y2, y3, m0, m1, d0, d1;
         if ((c4 == '-' && c7 == '-') || (c4 == '/' && c7 == '/')) {
             // yyyy-MM-dd
             year = digit4(str, off);
@@ -1353,7 +1325,7 @@ public class DateUtils {
         } else if (c1 == ' ' && c5 == ' ') {
             // d MMM yyyy
             dom = digit1(str, off);
-            month = DateUtils.month(c2, (char) str[off + 3], c4);
+            month = DateUtils.month(c2, str[off + 3], c4);
             year = digit4(str, off + 6);
         } else {
             return null;
@@ -1705,7 +1677,7 @@ public class DateUtils {
         char c15 = str[off + 15];
         char c16 = str[off + 16];
 
-        int year, month, dom, hour, minute, second = 0, nanoOfSecond = 0;
+        int year, month, dom, hour, minute, second, nanoOfSecond = 0;
         if (c4 == '-' && c7 == '-' && (c10 == 'T' || c10 == ' ') && c13 == ':' && c16 == 'Z') {
             year = digit4(str, off);
             month = digit2(str, off + 5);
@@ -2250,41 +2222,35 @@ public class DateUtils {
         byte c5 = str[off + 5];
         byte c7 = str[off + 7];
         byte c10 = str[off + 10];
-        byte c13 = str[off + 13];
-        byte c16 = str[off + 16];
 
-        int year, month, dom, hour, minute, second;
+        int year, month, dom;
         if (((c4 == '-' && c7 == '-') || (c4 == '/' && c7 == '/'))
-                && (c10 == ' ' || c10 == 'T')
-                && c13 == ':' && c16 == ':'
-        ) {
+                && (c10 == ' ' || c10 == 'T')) {
             year = digit4(str, off);
             month = digit2(str, off + 5);
             dom = digit2(str, off + 8);
-            hour = digit2(str, off + 11);
-            minute = digit2(str, off + 14);
-            second = digit2(str, off + 17);
-        } else if (c2 == '/' && c5 == '/' && (c10 == ' ' || c10 == 'T') && c13 == ':' && c16 == ':') {
+        } else if (c2 == '/' && c5 == '/' && (c10 == ' ' || c10 == 'T')) {
             dom = digit2(str, off);
             month = digit2(str, off + 3);
             year = digit4(str, off + 6);
-            hour = digit2(str, off + 11);
-            minute = digit2(str, off + 14);
-            second = digit2(str, off + 17);
-        } else if (c1 == ' ' && c5 == ' ' && c10 == ' ' && c13 == ':' && c16 == ':') {
+        } else if (c1 == ' ' && c5 == ' ' && c10 == ' ') {
             dom = digit1(str, off);
             month = DateUtils.month(c2, c3, c4);
             year = digit4(str, off + 6);
-            hour = digit2(str, off + 11);
-            minute = digit2(str, off + 14);
-            second = digit2(str, off + 17);
         } else {
             return null;
         }
 
-        return (year | month | dom | hour | minute | second) <= 0
-                ? null
-                : LocalDateTime.of(year, month, dom, hour, minute, second);
+        long hms = hms(str, off + 11);
+        if ((year | month | dom | hms) <= 0) {
+            return null;
+        }
+
+        int hour = (int) hms & 0xFF;
+        int minute = (int) (hms >> 24) & 0xFF;
+        int second = (int) (hms >> 48) & 0xFF;
+
+        return LocalDateTime.of(year, month, dom, hour, minute, second);
     }
 
     public static LocalDateTime parseLocalDateTime20(char[] str, int off) {
@@ -2311,12 +2277,12 @@ public class DateUtils {
     }
 
     public static LocalDateTime parseLocalDateTime20(byte[] str, int off) {
+        long hms;
         if (off + 19 > str.length
                 || str[off + 2] != ' '
                 || str[off + 6] != ' '
                 || str[off + 11] != ' '
-                || str[off + 14] != ':'
-                || str[off + 17] != ':'
+                || (hms = hms(str, off + 12)) == -1L
         ) {
             return null;
         }
@@ -2324,9 +2290,9 @@ public class DateUtils {
         int dom = digit2(str, off);
         int month = DateUtils.month(str[off + 3], str[off + 4], str[off + 5]);
         int year = digit4(str, off + 7);
-        int hour = digit2(str, off + 12);
-        int minute = digit2(str, off + 15);
-        int second = digit2(str, off + 18);
+        int hour = (int) hms & 0xFF;
+        int minute = (int) (hms >> 24) & 0xFF;
+        int second = (int) (hms >> 48) & 0xFF;
 
         return (year | month | dom | hour | minute | second) <= 0 || hour > 24 || minute > 59 || second > 60
                 ? null
@@ -2334,13 +2300,13 @@ public class DateUtils {
     }
 
     public static LocalDateTime parseLocalDateTime26(byte[] str, int off) {
+        long hms;
         byte c10;
         if (off + 26 > str.length
                 || str[off + 4] != '-'
                 || str[off + 7] != '-'
                 || ((c10 = str[off + 10]) != ' ' && c10 != 'T')
-                || str[off + 13] != ':'
-                || str[off + 16] != ':'
+                || (hms = hms(str, off + 11)) == -1L
                 || str[off + 19] != '.'
         ) {
             return null;
@@ -2349,9 +2315,9 @@ public class DateUtils {
         int year = digit4(str, off);
         int month = digit2(str, off + 5);
         int dom = digit2(str, off + 8);
-        int hour = digit2(str, off + 11);
-        int minute = digit2(str, off + 14);
-        int second = digit2(str, off + 17);
+        int hour = (int) hms & 0xFF;
+        int minute = (int) (hms >> 24) & 0xFF;
+        int second = (int) (hms >> 48) & 0xFF;
         int nano = readNanos(str, 6, off + 20);
 
         return (year | month | dom | hour | minute | second | nano) <= 0 || hour > 24 || minute > 59 || second > 60
@@ -2386,13 +2352,13 @@ public class DateUtils {
     }
 
     public static LocalDateTime parseLocalDateTime27(byte[] str, int off) {
+        long hms;
         byte c10;
         if (off + 27 > str.length
                 || str[off + 4] != '-'
                 || str[off + 7] != '-'
                 || ((c10 = str[off + 10]) != ' ' && c10 != 'T')
-                || str[off + 13] != ':'
-                || str[off + 16] != ':'
+                || (hms = hms(str, off + 11)) == -1L
                 || str[off + 19] != '.'
         ) {
             return null;
@@ -2401,9 +2367,9 @@ public class DateUtils {
         int year = digit4(str, off);
         int month = digit2(str, off + 5);
         int dom = digit2(str, off + 8);
-        int hour = digit2(str, off + 11);
-        int minute = digit2(str, off + 14);
-        int second = digit2(str, off + 17);
+        int hour = (int) hms & 0xFF;
+        int minute = (int) (hms >> 24) & 0xFF;
+        int second = (int) (hms >> 48) & 0xFF;
         int nano = readNanos(str, 7, off + 20);
 
         return (year | month | dom | hour | minute | second | nano) <= 0 || hour > 24 || minute > 59 || second > 60
@@ -2464,13 +2430,13 @@ public class DateUtils {
     }
 
     public static LocalDateTime parseLocalDateTime28(byte[] str, int off) {
+        long hms;
         byte c10;
         if (off + 28 > str.length
                 || str[off + 4] != '-'
                 || str[off + 7] != '-'
                 || ((c10 = str[off + 10]) != ' ' && c10 != 'T')
-                || str[off + 13] != ':'
-                || str[off + 16] != ':'
+                || (hms = hms(str, off + 11)) == -1L
                 || str[off + 19] != '.'
         ) {
             return null;
@@ -2479,9 +2445,9 @@ public class DateUtils {
         int year = digit4(str, off);
         int month = digit2(str, off + 5);
         int dom = digit2(str, off + 8);
-        int hour = digit2(str, off + 11);
-        int minute = digit2(str, off + 14);
-        int second = digit2(str, off + 17);
+        int hour = (int) hms & 0xFF;
+        int minute = (int) (hms >> 24) & 0xFF;
+        int second = (int) (hms >> 48) & 0xFF;
         int nano = readNanos(str, 8, off + 20);
 
         return (year | month | dom | hour | minute | second | nano) <= 0 || hour > 24 || minute > 59 || second > 60
@@ -2490,13 +2456,13 @@ public class DateUtils {
     }
 
     public static LocalDateTime parseLocalDateTime29(byte[] str, int off) {
+        long hms;
         byte c10;
         if (off + 29 > str.length
                 || str[off + 4] != '-'
                 || str[off + 7] != '-'
                 || ((c10 = str[off + 10]) != ' ' && c10 != 'T')
-                || str[off + 13] != ':'
-                || str[off + 16] != ':'
+                || (hms = hms(str, off + 11)) == -1L
                 || str[off + 19] != '.'
         ) {
             return null;
@@ -2505,9 +2471,9 @@ public class DateUtils {
         int year = digit4(str, off);
         int month = digit2(str, off + 5);
         int dom = digit2(str, off + 8);
-        int hour = digit2(str, off + 11);
-        int minute = digit2(str, off + 14);
-        int second = digit2(str, off + 17);
+        int hour = (int) hms & 0xFF;
+        int minute = (int) (hms >> 24) & 0xFF;
+        int second = (int) (hms >> 48) & 0xFF;
         int nano = readNanos(str, 9, off + 20);
 
         return (year | month | dom | hour | minute | second | nano) <= 0 || hour > 24 || minute > 59 || second > 60
@@ -5691,23 +5657,7 @@ public class DateUtils {
 
         long utcSeconds;
         {
-            final int DAYS_PER_CYCLE = 146097;
-            final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);
-
-            long total = (365 * year)
-                    + ((year + 3) / 4 - (year + 99) / 100 + (year + 399) / 400)
-                    + ((367 * month - 362) / 12)
-                    + (dom - 1);
-
-            if (month > 2) {
-                total--;
-                boolean leapYear = (year & 3) == 0 && ((year % 100) != 0 || (year % 400) == 0);
-                if (!leapYear) {
-                    total--;
-                }
-            }
-
-            long epochDay = total - DAYS_0000_TO_1970;
+            long epochDay = calcEpochDay(year, month, dom);
             utcSeconds = epochDay * 86400
                     + hour * 3600
                     + minute * 60
@@ -5734,6 +5684,26 @@ public class DateUtils {
         }
 
         return (utcSeconds - zoneOffsetTotalSeconds) * 1000L;
+    }
+
+    private static long calcEpochDay(int year, int month, int dom) {
+        final int DAYS_PER_CYCLE = 146097;
+        final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);
+
+        long total = (365 * year)
+                + ((year + 3) / 4 - (year + 99) / 100 + (year + 399) / 400)
+                + ((367 * month - 362) / 12)
+                + (dom - 1);
+
+        if (month > 2) {
+            total--;
+            boolean leapYear = (year & 3) == 0 && ((year % 100) != 0 || (year % 400) == 0);
+            if (!leapYear) {
+                total--;
+            }
+        }
+
+        return total - DAYS_0000_TO_1970;
     }
 
     static long parseMillis19(
@@ -6013,23 +5983,7 @@ public class DateUtils {
 
         long utcSeconds;
         {
-            final int DAYS_PER_CYCLE = 146097;
-            final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);
-
-            long total = (365 * year)
-                    + ((year + 3) / 4 - (year + 99) / 100 + (year + 399) / 400)
-                    + ((367 * month - 362) / 12)
-                    + (dom - 1);
-
-            if (month > 2) {
-                total--;
-                boolean leapYear = (year & 3) == 0 && ((year % 100) != 0 || (year % 400) == 0);
-                if (!leapYear) {
-                    total--;
-                }
-            }
-
-            long epochDay = total - DAYS_0000_TO_1970;
+            long epochDay = calcEpochDay(year, month, dom);
             utcSeconds = epochDay * 86400
                     + hour * 3600
                     + minute * 60
@@ -6215,23 +6169,7 @@ public class DateUtils {
 
         long utcSeconds;
         {
-            final int DAYS_PER_CYCLE = 146097;
-            final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);
-
-            long total = (365 * year)
-                    + ((year + 3) / 4 - (year + 99) / 100 + (year + 399) / 400)
-                    + ((367 * month - 362) / 12)
-                    + (dom - 1);
-
-            if (month > 2) {
-                total--;
-                boolean leapYear = (year & 3) == 0 && ((year % 100) != 0 || (year % 400) == 0);
-                if (!leapYear) {
-                    total--;
-                }
-            }
-
-            long epochDay = total - DAYS_0000_TO_1970;
+            long epochDay = calcEpochDay(year, month, dom);
             utcSeconds = epochDay * 86400;
         }
 
@@ -6620,23 +6558,7 @@ public class DateUtils {
 
         long utcSeconds;
         {
-            final int DAYS_PER_CYCLE = 146097;
-            final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);
-
-            long total = (365 * year)
-                    + ((year + 3) / 4 - (year + 99) / 100 + (year + 399) / 400)
-                    + ((367 * month - 362) / 12)
-                    + (dom - 1);
-
-            if (month > 2) {
-                total--;
-                boolean leapYear = (year & 3) == 0 && ((year % 100) != 0 || (year % 400) == 0);
-                if (!leapYear) {
-                    total--;
-                }
-            }
-
-            long epochDay = total - DAYS_0000_TO_1970;
+            long epochDay = calcEpochDay(year, month, dom);
             utcSeconds = epochDay * 86400
                     + hour * 3600
                     + minute * 60
@@ -6971,23 +6893,7 @@ public class DateUtils {
 
         long utcSeconds;
         {
-            final int DAYS_PER_CYCLE = 146097;
-            final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);
-
-            long total = (365 * year)
-                    + ((year + 3) / 4 - (year + 99) / 100 + (year + 399) / 400)
-                    + ((367 * month - 362) / 12)
-                    + (dom - 1);
-
-            if (month > 2) {
-                total--;
-                boolean leapYear = (year & 3) == 0 && ((year % 100) != 0 || (year % 400) == 0);
-                if (!leapYear) {
-                    total--;
-                }
-            }
-
-            long epochDay = total - DAYS_0000_TO_1970;
+            long epochDay = calcEpochDay(year, month, dom);
             utcSeconds = epochDay * 86400
                     + hour * 3600
                     + minute * 60
@@ -7323,23 +7229,7 @@ public class DateUtils {
 
         long utcSeconds;
         {
-            final int DAYS_PER_CYCLE = 146097;
-            final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);
-
-            long total = (365 * year)
-                    + ((year + 3) / 4 - (year + 99) / 100 + (year + 399) / 400)
-                    + ((367 * month - 362) / 12)
-                    + (dom - 1);
-
-            if (month > 2) {
-                total--;
-                boolean leapYear = (year & 3) == 0 && ((year % 100) != 0 || (year % 400) == 0);
-                if (!leapYear) {
-                    total--;
-                }
-            }
-
-            long epochDay = total - DAYS_0000_TO_1970;
+            long epochDay = calcEpochDay(year, month, dom);
             utcSeconds = epochDay * 86400
                     + hour * 3600
                     + minute * 60
@@ -7600,23 +7490,7 @@ public class DateUtils {
 
         long utcSeconds;
         {
-            final int DAYS_PER_CYCLE = 146097;
-            final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);
-
-            long total = (365 * year)
-                    + ((year + 3) / 4 - (year + 99) / 100 + (year + 399) / 400)
-                    + ((367 * month - 362) / 12)
-                    + (dom - 1);
-
-            if (month > 2) {
-                total--;
-                boolean leapYear = (year & 3) == 0 && ((year % 100) != 0 || (year % 400) == 0);
-                if (!leapYear) {
-                    total--;
-                }
-            }
-
-            long epochDay = total - DAYS_0000_TO_1970;
+            long epochDay = calcEpochDay(year, month, dom);
             utcSeconds = epochDay * 86400
                     + hour * 3600
                     + minute * 60
@@ -7654,23 +7528,7 @@ public class DateUtils {
             int minute,
             int second
     ) {
-        final int DAYS_PER_CYCLE = 146097;
-        final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);
-
-        long total = (365 * year)
-                + ((year + 3) / 4 - (year + 99) / 100 + (year + 399) / 400)
-                + ((367 * month - 362) / 12)
-                + (dom - 1);
-
-        if (month > 2) {
-            total--;
-            boolean leapYear = (year & 3) == 0 && ((year % 100) != 0 || (year % 400) == 0);
-            if (!leapYear) {
-                total--;
-            }
-        }
-
-        long epochDay = total - DAYS_0000_TO_1970;
+        long epochDay = calcEpochDay(year, month, dom);
         return epochDay * 86400
                 + hour * 3600
                 + minute * 60
@@ -7870,17 +7728,17 @@ public class DateUtils {
         String str;
         if (STRING_CREATOR_JDK11 != null) {
             byte[] bytes = new byte[8];
-            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET, PACKED_DIGITS[y01]);
-            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 2, PACKED_DIGITS[y23]);
-            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 4, PACKED_DIGITS[month]);
-            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 6, PACKED_DIGITS[dayOfMonth]);
+            writeDigitPair(bytes, 0, y01);
+            writeDigitPair(bytes, 2, y23);
+            writeDigitPair(bytes, 4, month);
+            writeDigitPair(bytes, 6, dayOfMonth);
             str = STRING_CREATOR_JDK11.apply(bytes, LATIN1);
         } else {
             char[] chars = new char[8];
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET, PACKED_DIGITS_UTF16[y01]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 4, PACKED_DIGITS_UTF16[y23]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 8, PACKED_DIGITS_UTF16[month]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 12, PACKED_DIGITS_UTF16[dayOfMonth]);
+            writeDigitPair(chars, 0, y01);
+            writeDigitPair(chars, 2, y23);
+            writeDigitPair(chars, 4, month);
+            writeDigitPair(chars, 6, dayOfMonth);
             if (STRING_CREATOR_JDK8 != null) {
                 str = STRING_CREATOR_JDK8.apply(chars, Boolean.TRUE);
             } else {
@@ -7941,17 +7799,17 @@ public class DateUtils {
         String str;
         if (STRING_CREATOR_JDK11 != null) {
             byte[] bytes = new byte[8];
-            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET, PACKED_DIGITS[y01]);
-            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 2, PACKED_DIGITS[y23]);
-            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 4, PACKED_DIGITS[month]);
-            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 6, PACKED_DIGITS[dayOfMonth]);
+            writeDigitPair(bytes, 0, y01);
+            writeDigitPair(bytes, 2, y23);
+            writeDigitPair(bytes, 4, month);
+            writeDigitPair(bytes, 6, dayOfMonth);
             str = STRING_CREATOR_JDK11.apply(bytes, LATIN1);
         } else {
             char[] chars = new char[8];
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET, PACKED_DIGITS_UTF16[y01]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 4, PACKED_DIGITS_UTF16[y23]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 8, PACKED_DIGITS_UTF16[month]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 12, PACKED_DIGITS_UTF16[dayOfMonth]);
+            writeDigitPair(chars, 0, y01);
+            writeDigitPair(chars, 2, y23);
+            writeDigitPair(chars, 4, month);
+            writeDigitPair(chars, 6, dayOfMonth);
             if (STRING_CREATOR_JDK8 != null) {
                 str = STRING_CREATOR_JDK8.apply(chars, Boolean.TRUE);
             } else {
@@ -8283,20 +8141,20 @@ public class DateUtils {
         if (STRING_CREATOR_JDK11 != null) {
             byte[] bytes = new byte[10];
             if (pattern == DATE_FORMAT_10_DOT) {
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET, PACKED_DIGITS[dayOfMonth]);
+                writeDigitPair(bytes, 0, dayOfMonth);
                 bytes[2] = '.';
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 3, PACKED_DIGITS[month]);
+                writeDigitPair(bytes, 3, month);
                 bytes[5] = '.';
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 6, PACKED_DIGITS[y01]);
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 8, PACKED_DIGITS[y23]);
+                writeDigitPair(bytes, 6, y01);
+                writeDigitPair(bytes, 8, y23);
             } else {
                 byte separator = (byte) (pattern == DATE_FORMAT_10_DASH ? '-' : '/');
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET, PACKED_DIGITS[y01]);
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 2, PACKED_DIGITS[y23]);
+                writeDigitPair(bytes, 0, y01);
+                writeDigitPair(bytes, 2, y23);
                 bytes[4] = separator;
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 5, PACKED_DIGITS[month]);
+                writeDigitPair(bytes, 5, month);
                 bytes[7] = separator;
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 8, PACKED_DIGITS[dayOfMonth]);
+                writeDigitPair(bytes, 8, dayOfMonth);
             }
 
             return STRING_CREATOR_JDK11.apply(bytes, LATIN1);
@@ -8304,20 +8162,20 @@ public class DateUtils {
 
         char[] chars = new char[10];
         if (pattern == DATE_FORMAT_10_DOT) {
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET, PACKED_DIGITS_UTF16[dayOfMonth]);
+            writeDigitPair(chars, 0, dayOfMonth);
             chars[2] = '.';
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 6, PACKED_DIGITS_UTF16[month]);
+            writeDigitPair(chars, 3, month);
             chars[5] = '.';
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 12, PACKED_DIGITS_UTF16[y01]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 16, PACKED_DIGITS_UTF16[y23]);
+            writeDigitPair(chars, 6, y01);
+            writeDigitPair(chars, 8, y23);
         } else {
             char separator = (pattern == DATE_FORMAT_10_DASH ? '-' : '/');
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET, PACKED_DIGITS_UTF16[y01]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 4, PACKED_DIGITS_UTF16[y23]);
+            writeDigitPair(chars, 0, y01);
+            writeDigitPair(chars, 2, y23);
             chars[4] = separator;
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 10, PACKED_DIGITS_UTF16[month]);
+            writeDigitPair(chars, 5, month);
             chars[7] = separator;
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 16, PACKED_DIGITS_UTF16[dayOfMonth]);
+            writeDigitPair(chars, 8, dayOfMonth);
         }
 
         if (STRING_CREATOR_JDK8 != null) {
@@ -8446,22 +8304,22 @@ public class DateUtils {
         if (STRING_CREATOR_JDK11 != null) {
             byte[] bytes = new byte[19];
             if (pattern == DATE_TIME_FORMAT_19_DOT) {
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET, PACKED_DIGITS[dayOfMonth]);
+                writeDigitPair(bytes, 0, dayOfMonth);
                 bytes[2] = '.';
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 3, PACKED_DIGITS[month]);
+                writeDigitPair(bytes, 3, month);
                 bytes[5] = '.';
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 6, PACKED_DIGITS[y01]);
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 8, PACKED_DIGITS[y23]);
-                bytes[10] = (byte) ' ';
+                writeDigitPair(bytes, 6, y01);
+                writeDigitPair(bytes, 8, y23);
+                bytes[10] = ' ';
             } else {
                 char separator = pattern == DATE_TIME_FORMAT_19_DASH ? ' ' : 'T';
                 byte dateSeparator = (byte) (pattern == DATE_TIME_FORMAT_19_SLASH ? '/' : '-');
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET, PACKED_DIGITS[y01]);
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 2, PACKED_DIGITS[y23]);
+                writeDigitPair(bytes, 0, y01);
+                writeDigitPair(bytes, 2, y23);
                 bytes[4] = dateSeparator;
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 5, PACKED_DIGITS[month]);
+                writeDigitPair(bytes, 5, month);
                 bytes[7] = dateSeparator;
-                UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + 8, PACKED_DIGITS[dayOfMonth]);
+                writeDigitPair(bytes, 8, dayOfMonth);
                 bytes[10] = (byte) separator;
             }
             IOUtils.writeLocalTime(bytes, 11, hour, minute, second);
@@ -8471,22 +8329,22 @@ public class DateUtils {
 
         char[] chars = new char[19];
         if (pattern == DATE_TIME_FORMAT_19_DOT) {
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET, PACKED_DIGITS_UTF16[dayOfMonth]);
+            writeDigitPair(chars, 0, dayOfMonth);
             chars[2] = '.';
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 6, PACKED_DIGITS_UTF16[month]);
+            writeDigitPair(chars, 3, month);
             chars[5] = '.';
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 12, PACKED_DIGITS_UTF16[y01]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 16, PACKED_DIGITS_UTF16[y23]);
+            writeDigitPair(chars, 6, y01);
+            writeDigitPair(chars, 8, y23);
             chars[10] = ' ';
         } else {
             char separator = pattern == DATE_TIME_FORMAT_19_DASH ? ' ' : 'T';
             char dateSeparator = pattern == DATE_TIME_FORMAT_19_SLASH ? '/' : '-';
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET, PACKED_DIGITS_UTF16[y01]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 4, PACKED_DIGITS_UTF16[y23]);
+            writeDigitPair(chars, 0, y01);
+            writeDigitPair(chars, 2, y23);
             chars[4] = dateSeparator;
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 10, PACKED_DIGITS_UTF16[month]);
+            writeDigitPair(chars, 5, month);
             chars[7] = dateSeparator;
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + 16, PACKED_DIGITS_UTF16[dayOfMonth]);
+            writeDigitPair(chars, 8, dayOfMonth);
             chars[10] = separator;
         }
         IOUtils.writeLocalTime(chars, 11, hour, minute, second);
@@ -8706,69 +8564,35 @@ public class DateUtils {
     }
 
     public static int month(char c0, char c1, char c2) {
-        switch (c0) {
-            case 'J':
-                // Jan
-                if (c1 == 'a' && c2 == 'n') {
-                    return 1;
-                }
-                if (c1 == 'u') {
-                    if (c2 == 'n') {
-                        return 6;
-                    }
-                    if (c2 == 'l') {
-                        return 7;
-                    }
-                }
-                break;
-            case 'F':
-                if (c1 == 'e' && c2 == 'b') {
-                    return 2;
-                }
-                break;
-            case 'M':
-                if (c1 == 'a') {
-                    if (c2 == 'r') {
-                        return 3;
-                    }
-                    if (c2 == 'y') {
-                        return 5;
-                    }
-                }
-                break;
-            case 'A':
-                if (c1 == 'p' && c2 == 'r') {
-                    return 4;
-                }
-                if (c1 == 'u' && c2 == 'g') {
-                    return 8;
-                }
-                break;
-            case 'S':
-                if (c1 == 'e' && c2 == 'p') {
-                    return 9;
-                }
-                break;
-            case 'O':
-                if (c1 == 'c' && c2 == 't') {
-                    return 10;
-                }
-                break;
-            case 'N':
-                if (c1 == 'o' && c2 == 'v') {
-                    return 11;
-                }
-                break;
-            case 'D':
-                if (c1 == 'e' && c2 == 'c') {
-                    return 12;
-                }
-                break;
+        int x = (c0 << 16) | (c1 << 8) | c2;
+        switch (x) {
+            case 0x4a616e:// Jan
+                return 1;
+            case 0x466562: // Feb
+                return 2;
+            case 0x4d6172: // Mar
+                return 3;
+            case 0x417072: // Apr
+                return 4;
+            case 0x4d6179: // May
+                return 5;
+            case 0x4a756e:// Jun
+                return 6;
+            case 0x4a756c:// Jul
+                return 7;
+            case 0x417567: // Aug
+                return 8;
+            case 0x536570: // Sep
+                return 9;
+            case 0x4f6374: // Oct
+                return 10;
+            case 0x4e6f76: // Nov
+                return 11;
+            case 0x446563: // Dec
+                return 12;
             default:
-                break;
+                return -1;
         }
-
-        return -1;
     }
 
     public static int hourAfterNoon(char h0, char h1) {
@@ -9202,4 +9026,34 @@ public class DateUtils {
             0,
             0,
     };
+
+    public static long hms(byte[] bytes, int off) {
+        long v = getLongLE(bytes, off);
+        long d;
+        if ((((v & 0xF0F0F0F0_F0F0F0F0L) - 0x30303030_30303030L) | (((d = v & 0x0F0F0F0F_0F0F0F0FL) + 0x06060006_06000606L) & 0xF0F000F0_F000F0F0L)) != 0
+                || (d & 0x00000F00_000F0000L) != 0x00000a00_000a0000L) { // 00:00:00
+            return -1;
+        }
+        return ((d & 0x00F_0000_0F00_000FL) << 3) + ((d & 0x00F_0000_0F00_000FL) << 1) + ((d & 0xF00_000F_0000_0F00L) >> 8);
+    }
+
+    public static long ymd(byte[] bytes, int off) {
+        long v = getLongLE(bytes, off);
+        long d;
+        if (((v & 0x0000FF00_00FF0000L) != 0x00002d00_002d0000L) // yy-mm-dd
+                || (((v & 0xF0F000F0_F000F0F0L) - 0x30300030_30003030L) | (((d = v & 0x0F0F000F_0F000F0FL) + 0x06060006_06000606L) & 0xF0F000F0_F000F0F0L)) != 0) {
+            return -1;
+        }
+        return ((d & 0x00F_0000_0F00_000FL) << 3) + ((d & 0x00F_0000_0F00_000FL) << 1) + ((d & 0xF00_000F_0000_0F00L) >> 8);
+    }
+
+    public static int yy(byte[] bytes, int off) {
+        int x = getShortLE(bytes, off);
+        int d;
+        if ((((x & 0xF0F0) - 0x3030) | (((d = x & 0x0F0F) + 0x0606) & 0xF0F0)) != 0
+        ) {
+            return -1;
+        }
+        return (d & 0xF) * 1000 + (d >> 8) * 100;
+    }
 }

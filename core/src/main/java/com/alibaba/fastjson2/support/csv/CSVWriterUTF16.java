@@ -12,17 +12,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
-import static com.alibaba.fastjson2.util.IOUtils.PACKED_DIGITS_UTF16;
-import static com.alibaba.fastjson2.util.JDKUtils.ARRAY_CHAR_BASE_OFFSET;
-import static com.alibaba.fastjson2.util.JDKUtils.UNSAFE;
-
 final class CSVWriterUTF16
         extends CSVWriter {
-    static final char[] BYTES_TRUE = "true".toCharArray();
-    static final char[] BYTES_FALSE = "false".toCharArray();
-
     final Writer out;
     final char[] chars;
+    private static final int DOUBLE_QUOTE_2_UTF16 = '"' | ('"' << 16);
 
     CSVWriterUTF16(
             Writer out,
@@ -57,9 +51,9 @@ final class CSVWriterUTF16
         chars[off++] = '\n';
     }
 
-    public void writeBoolean(boolean booleanValue) {
-        char[] valueBytes = booleanValue ? BYTES_TRUE : BYTES_FALSE;
-        writeRaw(valueBytes);
+    public void writeBoolean(boolean v) {
+        checkCapacity(5);
+        this.off = IOUtils.putBoolean(chars, off, v);
     }
 
     public void writeInt64(long longValue) {
@@ -85,11 +79,7 @@ final class CSVWriterUTF16
         int off = this.off;
         off = IOUtils.writeLocalDate(chars, off, year, month, dayOfMonth);
         chars[off] = ' ';
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 1) << 1), PACKED_DIGITS_UTF16[hour]);
-        chars[off + 3] = ':';
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 4) << 1), PACKED_DIGITS_UTF16[minute]);
-        chars[off + 6] = ':';
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 7) << 1), PACKED_DIGITS_UTF16[second]);
+        IOUtils.writeLocalTime(chars, off + 1, hour, minute, second);
         this.off = off + 9;
     }
 
@@ -150,8 +140,7 @@ final class CSVWriterUTF16
         for (int i = 0; i < len; ) {
             char ch = str.charAt(i++);
             if (ch == '"') {
-                chars[off] = '"';
-                chars[off + 1] = '"';
+                IOUtils.putIntUnaligned(chars, off, DOUBLE_QUOTE_2_UTF16);
                 off += 2;
             } else {
                 chars[off++] = ch;

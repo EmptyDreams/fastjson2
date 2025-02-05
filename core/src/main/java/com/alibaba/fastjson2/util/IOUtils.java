@@ -11,24 +11,31 @@ import java.time.LocalTime;
 import static com.alibaba.fastjson2.util.JDKUtils.*;
 
 public class IOUtils {
-    public static final int NULL_32 = BIG_ENDIAN ? 0x6e756c6c : 0x6c6c756e;
-    public static final long NULL_64 = BIG_ENDIAN ? 0x6e0075006c006cL : 0x6c006c0075006eL;
+    static final int NULL_32 = BIG_ENDIAN ? 0x6e756c6c : 0x6c6c756e;
+    static final long NULL_64 = BIG_ENDIAN ? 0x6e0075006c006cL : 0x6c006c0075006eL;
 
-    public static final int TRUE = BIG_ENDIAN ? 0x74727565 : 0x65757274;
-    public static final long TRUE_64 = BIG_ENDIAN ? 0x74007200750065L : 0x65007500720074L;
+    static final int TRUE = BIG_ENDIAN ? 0x74727565 : 0x65757274;
+    static final long TRUE_64 = BIG_ENDIAN ? 0x74007200750065L : 0x65007500720074L;
 
-    public static final int ALSE = BIG_ENDIAN ? 0x616c7365 : 0x65736c61;
-    public static final long ALSE_64 = BIG_ENDIAN ? 0x61006c00730065L : 0x650073006c0061L;
+    static final int ALSE = BIG_ENDIAN ? 0x616c7365 : 0x65736c61;
+    static final long ALSE_64 = BIG_ENDIAN ? 0x61006c00730065L : 0x650073006c0061L;
     public static final long DOT_X0 = BIG_ENDIAN ? 0x2e00L : 0x2eL;
+
+    public static final int INT_32_MULT_MIN_10 = Integer.MIN_VALUE / 10;
+    public static final int INT_32_MULT_MIN_100 = Integer.MIN_VALUE / 100;
+
+    public static final long INT_64_MULT_MIN_10 = Long.MIN_VALUE / 10;
+    public static final long INT_64_MULT_MIN_100 = Long.MIN_VALUE / 100;
 
     static final int[] sizeTable = {9, 99, 999, 9999, 99999, 999999, 9999999, 99999999, 999999999, Integer.MAX_VALUE};
 
-    public static final int[] DIGITS_K_32 = new int[1000];
-    public static final long[] DIGITS_K_64 = new long[1000];
+    public static final int[] DIGITS_K_32 = new int[1024];
+    public static final long[] DIGITS_K_64 = new long[1024];
 
     private static final byte[] MIN_INT_BYTES = "-2147483648".getBytes();
     private static final char[] MIN_INT_CHARS = "-2147483648".toCharArray();
-    private static final byte[] MIN_LONG = "-9223372036854775808".getBytes();
+    private static final byte[] MIN_LONG_BYTES = "-9223372036854775808".getBytes();
+    private static final char[] MIN_LONG_CHARS = "-9223372036854775808".toCharArray();
 
     public static final short[] PACKED_DIGITS;
     public static final int[] PACKED_DIGITS_UTF16;
@@ -54,6 +61,9 @@ public class IOUtils {
             1000000000000000000L,
     };
 
+    private static final short ZERO_DOT_LATIN1;
+    private static final int ZERO_DOT_UTF16;
+
     static {
         short[] shorts = new short[]{
                 0x3030, 0x3130, 0x3230, 0x3330, 0x3430, 0x3530, 0x3630, 0x3730, 0x3830, 0x3930,
@@ -65,7 +75,9 @@ public class IOUtils {
                 0x3036, 0x3136, 0x3236, 0x3336, 0x3436, 0x3536, 0x3636, 0x3736, 0x3836, 0x3936,
                 0x3037, 0x3137, 0x3237, 0x3337, 0x3437, 0x3537, 0x3637, 0x3737, 0x3837, 0x3937,
                 0x3038, 0x3138, 0x3238, 0x3338, 0x3438, 0x3538, 0x3638, 0x3738, 0x3838, 0x3938,
-                0x3039, 0x3139, 0x3239, 0x3339, 0x3439, 0x3539, 0x3639, 0x3739, 0x3839, 0x3939
+                0x3039, 0x3139, 0x3239, 0x3339, 0x3439, 0x3539, 0x3639, 0x3739, 0x3839, 0x3939,
+                -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                -1, -1, -1, -1, -1, -1, -1, -1
         };
         int[] digits = new int[]{
                 0x300030, 0x310030, 0x320030, 0x330030, 0x340030, 0x350030, 0x360030, 0x370030, 0x380030, 0x390030,
@@ -77,17 +89,10 @@ public class IOUtils {
                 0x300036, 0x310036, 0x320036, 0x330036, 0x340036, 0x350036, 0x360036, 0x370036, 0x380036, 0x390036,
                 0x300037, 0x310037, 0x320037, 0x330037, 0x340037, 0x350037, 0x360037, 0x370037, 0x380037, 0x390037,
                 0x300038, 0x310038, 0x320038, 0x330038, 0x340038, 0x350038, 0x360038, 0x370038, 0x380038, 0x390038,
-                0x300039, 0x310039, 0x320039, 0x330039, 0x340039, 0x350039, 0x360039, 0x370039, 0x380039, 0x390039
+                0x300039, 0x310039, 0x320039, 0x330039, 0x340039, 0x350039, 0x360039, 0x370039, 0x380039, 0x390039,
+                -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                -1, -1, -1, -1, -1, -1, -1, -1
         };
-
-        if (BIG_ENDIAN) {
-            for (int i = 0; i < shorts.length; i++) {
-                shorts[i] = Short.reverseBytes(shorts[i]);
-            }
-            for (int i = 0; i < digits.length; i++) {
-                digits[i] = Integer.reverseBytes(digits[i] << 8);
-            }
-        }
         PACKED_DIGITS = shorts;
         PACKED_DIGITS_UTF16 = digits;
 
@@ -98,11 +103,28 @@ public class IOUtils {
             int c3 = i % 10 + '0';
             DIGITS_K_32[i] = c0 + (c1 << 8) + (c2 << 16) + (c3 << 24);
             long v = (c1 << 16) + (((long) c2) << 32) + (((long) c3) << 48);
-            if (BIG_ENDIAN) {
-                v <<= 8;
-            }
             DIGITS_K_64[i] = c0 + v;
         }
+        ZERO_DOT_LATIN1 = UNSAFE.getShort(new byte[] {'0', '.'}, ARRAY_BYTE_BASE_OFFSET);
+        ZERO_DOT_UTF16 = UNSAFE.getInt(new char[] {'0', '.'}, ARRAY_CHAR_BASE_OFFSET);
+    }
+
+    private static short digitPair(int value) {
+        return PACKED_DIGITS[value & 0x7f];
+    }
+
+    public static void writeDigitPair(byte[] buf, int charPos, int value) {
+        putShortLE(
+                buf,
+                charPos,
+                PACKED_DIGITS[value & 0x7f]);
+    }
+
+    public static void writeDigitPair(char[] buf, int charPos, int value) {
+        putIntLE(
+                buf,
+                charPos,
+                PACKED_DIGITS_UTF16[value & 0x7f]);
     }
 
     public static int stringSize(int x) {
@@ -139,19 +161,19 @@ public class IOUtils {
             r = (q * 100) - i;
             i = q;
             charPos -= 2;
-            UNSAFE.putShort(buf, ARRAY_BYTE_BASE_OFFSET + charPos, PACKED_DIGITS[r]);
+            writeDigitPair(buf, charPos, r);
         }
 
         // We know there are at most two digits left at this point.
         if (i < -9) {
             charPos -= 2;
-            UNSAFE.putShort(buf, ARRAY_BYTE_BASE_OFFSET + charPos, PACKED_DIGITS[-i]);
+            writeDigitPair(buf, charPos, -i);
         } else {
-            buf[--charPos] = (byte) ('0' - i);
+            putByte(buf, --charPos, (byte) ('0' - i));
         }
 
         if (negative) {
-            buf[charPos - 1] = (byte) '-';
+            putByte(buf, charPos - 1, (byte) '-');
         }
     }
 
@@ -171,25 +193,19 @@ public class IOUtils {
             i = q;
 
             charPos -= 2;
-            UNSAFE.putInt(
-                    buf,
-                    ARRAY_CHAR_BASE_OFFSET + (charPos << 1),
-                    PACKED_DIGITS_UTF16[r]);
+            writeDigitPair(buf, charPos, r);
         }
 
         // We know there are at most two digits left at this point.
         if (i < -9) {
             charPos -= 2;
-            UNSAFE.putInt(
-                    buf,
-                    ARRAY_CHAR_BASE_OFFSET + (charPos << 1),
-                    PACKED_DIGITS_UTF16[-i]);
+            writeDigitPair(buf, charPos, -i);
         } else {
-            buf[--charPos] = (char) ('0' - i);
+            putChar(buf, --charPos, (char) ('0' - i));
         }
 
         if (negative) {
-            buf[charPos - 1] = '-';
+            putChar(buf, charPos - 1, '-');
         }
     }
 
@@ -206,10 +222,7 @@ public class IOUtils {
         while (i <= Integer.MIN_VALUE) {
             q = i / 100;
             charPos -= 2;
-            UNSAFE.putShort(
-                    buf,
-                    ARRAY_BYTE_BASE_OFFSET + charPos,
-                    PACKED_DIGITS[(int) ((q * 100) - i)]);
+            writeDigitPair(buf, charPos, (int) ((q * 100) - i));
             i = q;
         }
 
@@ -219,26 +232,21 @@ public class IOUtils {
         while (i2 <= -100) {
             q2 = i2 / 100;
             charPos -= 2;
-            UNSAFE.putShort(
-                    buf,
-                    ARRAY_BYTE_BASE_OFFSET + charPos,
-                    PACKED_DIGITS[(q2 * 100) - i2]);
+
+            writeDigitPair(buf, charPos, (q2 * 100) - i2);
             i2 = q2;
         }
 
         // We know there are at most two digits left at this point.
         if (i2 < -9) {
             charPos -= 2;
-            UNSAFE.putShort(
-                    buf,
-                    ARRAY_BYTE_BASE_OFFSET + charPos,
-                    PACKED_DIGITS[-i2]);
+            writeDigitPair(buf, charPos, -i2);
         } else {
-            buf[--charPos] = (byte) ('0' - i2);
+            putByte(buf, --charPos, (byte) ('0' - i2));
         }
 
         if (negative) {
-            buf[charPos - 1] = (byte) '-';
+            putByte(buf, charPos - 1, (byte) '-');
         }
     }
 
@@ -255,10 +263,7 @@ public class IOUtils {
         while (i <= Integer.MIN_VALUE) {
             q = i / 100;
             charPos -= 2;
-            UNSAFE.putInt(
-                    buf,
-                    ARRAY_CHAR_BASE_OFFSET + (charPos << 1),
-                    PACKED_DIGITS_UTF16[(int) ((q * 100) - i)]);
+            writeDigitPair(buf, charPos, (int) ((q * 100) - i));
             i = q;
         }
 
@@ -268,32 +273,26 @@ public class IOUtils {
         while (i2 <= -100) {
             q2 = i2 / 100;
             charPos -= 2;
-            UNSAFE.putInt(
-                    buf,
-                    ARRAY_CHAR_BASE_OFFSET + (charPos << 1),
-                    PACKED_DIGITS_UTF16[(q2 * 100) - i2]);
+            writeDigitPair(buf, charPos, (q2 * 100) - i2);
             i2 = q2;
         }
 
         // We know there are at most two digits left at this point.
         if (i2 < -9) {
             charPos -= 2;
-            UNSAFE.putInt(
-                    buf,
-                    ARRAY_CHAR_BASE_OFFSET + (charPos << 1),
-                    PACKED_DIGITS_UTF16[-i2]);
+            writeDigitPair(buf, charPos, -i2);
         } else {
-            buf[--charPos] = (char) ('0' - i2);
+            putChar(buf, --charPos, (char) ('0' - i2));
         }
 
         if (negative) {
-            buf[--charPos] = '-';
+            putChar(buf, charPos - 1, '-');
         }
     }
 
     public static int writeDecimal(byte[] buf, int off, long unscaledVal, int scale) {
         if (unscaledVal < 0) {
-            buf[off++] = (byte) '-';
+            putByte(buf, off++, (byte) '-');
             unscaledVal = -unscaledVal;
         }
 
@@ -301,34 +300,32 @@ public class IOUtils {
             int unscaleValSize = IOUtils.stringSize(unscaledVal);
             int insertionPoint = unscaleValSize - scale;
             if (insertionPoint == 0) {
-                buf[off] = '0';
-                buf[off + 1] = '.';
+                putShortUnaligned(buf, off, ZERO_DOT_LATIN1);
                 off += 2;
             } else if (insertionPoint < 0) {
-                buf[off] = '0';
-                buf[off + 1] = '.';
+                putShortUnaligned(buf, off, ZERO_DOT_LATIN1);
                 off += 2;
 
                 for (int i = 0; i < -insertionPoint; i++) {
-                    buf[off++] = '0';
+                    putByte(buf, off++, (byte) '0');
                 }
             } else {
                 long power = POWER_TEN[scale - 1];
                 long div = unscaledVal / power;
                 long rem = unscaledVal - div * power;
                 off = IOUtils.writeInt64(buf, off, div);
-                buf[off] = '.';
+                putByte(buf, off, (byte) '.');
 
                 if (scale == 1) {
-                    buf[off + 1] = (byte) (rem + '0');
+                    putByte(buf, off + 1, (byte) (rem + '0'));
                     return off + 2;
                 } else if (scale == 2) {
-                    UNSAFE.putShort(buf, ARRAY_BYTE_BASE_OFFSET + off + 1, PACKED_DIGITS[(int) rem]);
+                    writeDigitPair(buf, off + 1, (int) rem);
                     return off + 3;
                 }
 
                 for (int i = 0, end = unscaleValSize - stringSize(rem) - insertionPoint; i < end; ++i) {
-                    buf[++off] = '0';
+                    putByte(buf, ++off, (byte) '0');
                 }
                 return IOUtils.writeInt64(buf, off + 1, rem);
             }
@@ -339,7 +336,7 @@ public class IOUtils {
 
     public static int writeDecimal(char[] buf, int off, long unscaledVal, int scale) {
         if (unscaledVal < 0) {
-            buf[off++] = (byte) '-';
+            putChar(buf, off++, '-');
             unscaledVal = -unscaledVal;
         }
 
@@ -347,34 +344,32 @@ public class IOUtils {
             int unscaleValSize = stringSize(unscaledVal);
             int insertionPoint = unscaleValSize - scale;
             if (insertionPoint == 0) {
-                buf[off] = '0';
-                buf[off + 1] = '.';
+                putIntUnaligned(buf, off, ZERO_DOT_UTF16);
                 off += 2;
             } else if (insertionPoint < 0) {
-                buf[off] = '0';
-                buf[off + 1] = '.';
+                putIntUnaligned(buf, off, ZERO_DOT_UTF16);
                 off += 2;
 
                 for (int i = 0; i < -insertionPoint; i++) {
-                    buf[off++] = '0';
+                    putChar(buf, off++, '0');
                 }
             } else {
                 long power = POWER_TEN[scale - 1];
                 long div = unscaledVal / power;
                 long rem = unscaledVal - div * power;
                 off = IOUtils.writeInt64(buf, off, div);
-                buf[off] = '.';
+                putChar(buf, off, '.');
 
                 if (scale == 1) {
-                    buf[off + 1] = (char) (rem + '0');
+                    putChar(buf, off + 1, (char) (rem + '0'));
                     return off + 2;
                 } else if (scale == 2) {
-                    UNSAFE.putInt(buf, ARRAY_CHAR_BASE_OFFSET + ((off + 1) << 1), PACKED_DIGITS_UTF16[(int) rem]);
+                    writeDigitPair(buf, off + 1, (int) rem);
                     return off + 3;
                 }
 
                 for (int i = 0, end = unscaleValSize - stringSize(rem) - insertionPoint; i < end; ++i) {
-                    buf[++off] = '0';
+                    putChar(buf, ++off, '0');
                 }
                 return IOUtils.writeInt64(buf, off + 1, rem);
             }
@@ -740,7 +735,14 @@ public class IOUtils {
             if (len == -1) {
                 break;
             }
-            for (int i = 0; i < len; i++) {
+            int i = 0;
+            long address = ARRAY_BYTE_BASE_OFFSET;
+            int upperBound = (len & ~7);
+            while (i < upperBound && notContains(UNSAFE.getLong(buf, address), 0x0A0A0A0A0A0A0A0AL)) {
+                i += 8;
+                address += 8;
+            }
+            for (; i < len; i++) {
                 byte b = buf[i];
                 if (b == '\n') {
                     lines++;
@@ -751,67 +753,80 @@ public class IOUtils {
     }
 
     public static int writeLocalDate(byte[] bytes, int off, int year, int month, int dayOfMonth) {
+        if (year >= 0 && year < 10000) {
+            int y01 = year / 100;
+            writeDigitPair(bytes, off, y01);
+            putLongLE(
+                    bytes,
+                    off + 2,
+                    0x2d00002d0000L
+                            | digitPair(year - y01 * 100)
+                            | ((long) digitPair(month) << 24)
+                            | ((long) digitPair(dayOfMonth) << 48));
+            return off + 10;
+        }
+        return writeLocalDate0(bytes, off, year, month, dayOfMonth);
+    }
+
+    private static int writeLocalDate0(byte[] bytes, int off, int year, int month, int dayOfMonth) {
         if (year < 0) {
-            bytes[off++] = '-';
+            putByte(bytes, off++, (byte) '-');
             year = -year;
         } else if (year > 9999) {
-            bytes[off++] = '+';
+            putByte(bytes, off++, (byte) '+');
         }
-
-        if (year < 10000) {
-            int y01 = year / 100;
-            int y23 = year - y01 * 100;
-            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off, PACKED_DIGITS[y01]);
-            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 2, PACKED_DIGITS[y23]);
-            off += 4;
-        } else {
-            off = IOUtils.writeInt32(bytes, off, year);
-        }
-
-        bytes[off] = '-';
-        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 1, PACKED_DIGITS[month]);
-        bytes[off + 3] = '-';
-        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 4, PACKED_DIGITS[dayOfMonth]);
+        off = IOUtils.writeInt32(bytes, off, year);
+        putByte(bytes, off, (byte) '-');
+        writeDigitPair(bytes, off + 1, month);
+        putByte(bytes, off + 3, (byte) '-');
+        writeDigitPair(bytes, off + 4, dayOfMonth);
         return off + 6;
     }
 
     public static int writeLocalDate(char[] chars, int off, int year, int month, int dayOfMonth) {
-        if (year < 0) {
-            chars[off++] = '-';
-            year = -year;
-        } else if (year > 9999) {
-            chars[off++] = '+';
-        }
-
-        if (year < 10000) {
+        if (year >= 0 && year < 10000) {
             int y01 = year / 100;
             int y23 = year - y01 * 100;
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + (off << 1), PACKED_DIGITS_UTF16[y01]);
-            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 2) << 1), PACKED_DIGITS_UTF16[y23]);
-            off += 4;
-        } else {
-            off = IOUtils.writeInt32(chars, off, year);
+            writeDigitPair(chars, off, y01);
+            writeDigitPair(chars, off + 2, y23);
+            putChar(chars, off + 4, '-');
+            writeDigitPair(chars, off + 5, month);
+            putChar(chars, off + 7, '-');
+            writeDigitPair(chars, off + 8, dayOfMonth);
+            return off + 10;
         }
 
-        chars[off] = '-';
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 1) << 1), PACKED_DIGITS_UTF16[month]);
-        chars[off + 3] = '-';
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 4) << 1), PACKED_DIGITS_UTF16[dayOfMonth]);
+        return writeLocalDate0(chars, off, year, month, dayOfMonth);
+    }
+
+    public static int writeLocalDate0(char[] chars, int off, int year, int month, int dayOfMonth) {
+        if (year < 0) {
+            putChar(chars, off++, '-');
+            year = -year;
+        } else if (year > 9999) {
+            putChar(chars, off++, '+');
+        }
+        off = IOUtils.writeInt32(chars, off, year);
+        putChar(chars, off, '-');
+        writeDigitPair(chars, off + 1, month);
+        putChar(chars, off + 3, '-');
+        writeDigitPair(chars, off + 4, dayOfMonth);
         return off + 6;
     }
 
     public static void writeLocalTime(byte[] bytes, int off, int hour, int minute, int second) {
-        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off, PACKED_DIGITS[hour]);
-        bytes[off + 2] = ':';
-        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 3, PACKED_DIGITS[minute]);
-        bytes[off + 5] = ':';
-        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 6, PACKED_DIGITS[second]);
+        putLongLE(
+                bytes,
+                off,
+                0x3a00003a0000L
+                        | digitPair(hour)
+                        | ((long) digitPair(minute) << 24)
+                        | ((long) digitPair(second) << 48));
     }
 
     public static int writeLocalTime(byte[] bytes, int off, LocalTime time) {
         writeLocalTime(bytes, off, time.getHour(), time.getMinute(), time.getSecond());
         off += 8;
-
         int nano = time.getNano();
         return nano != 0 ? writeNano(bytes, off, nano) : off;
     }
@@ -821,7 +836,7 @@ public class IOUtils {
         final int div2 = div / 1000;
         final int rem1 = nano - div * 1000;
 
-        putInt(bytes, off, DIGITS_K_32[div2] & 0xffffff00 | '.');
+        putIntLE(bytes, off, DIGITS_K_32[div2] & 0xffffff00 | '.');
         off += 4;
 
         int v;
@@ -831,20 +846,19 @@ public class IOUtils {
                 return off;
             }
 
-            v = DIGITS_K_32[rem2];
+            v = DIGITS_K_32[rem2 & 0x3ff];
         } else {
-            v = DIGITS_K_32[div - div2 * 1000];
+            v = DIGITS_K_32[(div - div2 * 1000) & 0x3ff];
         }
 
-        bytes[off] = (byte) (v >> 8);
-        bytes[off + 1] = (byte) (v >> 16);
+        putShortLE(bytes, off, (short) (v >> 8));
         off += 2;
         if (rem1 == 0) {
-            bytes[off] = (byte) (v >> 24);
+            putByte(bytes, off, (byte) (v >> 24));
             return off + 1;
         }
 
-        putInt(bytes, off, DIGITS_K_32[rem1] & 0xffffff00 | (v >> 24));
+        putIntLE(bytes, off, DIGITS_K_32[rem1] & 0xffffff00 | (v >> 24));
         return off + 4;
     }
 
@@ -853,7 +867,7 @@ public class IOUtils {
         final int div2 = div / 1000;
         final int rem1 = nano - div * 1000;
 
-        putLong(chars, off, DIGITS_K_64[div2] & 0xffffffffffff0000L | DOT_X0);
+        putLongLE(chars, off, DIGITS_K_64[div2 & 0x3ff] & 0xffffffffffff0000L | DOT_X0);
         off += 4;
 
         long v;
@@ -863,29 +877,28 @@ public class IOUtils {
                 return off;
             }
 
-            v = DIGITS_K_64[rem2];
+            v = DIGITS_K_64[rem2 & 0x3ff];
         } else {
-            v = DIGITS_K_64[div - div2 * 1000];
+            v = DIGITS_K_64[(div - div2 * 1000) & 0x3ff];
         }
 
-        chars[off] = (char) (v >> 16);
-        chars[off + 1] = (char) (v >> 32);
+        putIntLE(chars, off, (int) (v >> 16));
         off += 2;
         if (rem1 == 0) {
-            chars[off] = (char) (v >> 48);
+            putChar(chars, off, (char) (v >> 48));
             return off + 1;
         }
 
-        putLong(chars, off, DIGITS_K_64[rem1] & 0xffffffffffff0000L | (v >> 48));
+        putLongLE(chars, off, DIGITS_K_64[rem1 & 0x3ff] & 0xffffffffffff0000L | (v >> 48));
         return off + 4;
     }
 
     public static void writeLocalTime(char[] chars, int off, int hour, int minute, int second) {
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + (off << 1), PACKED_DIGITS_UTF16[hour]);
-        chars[off + 2] = ':';
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 3) << 1), PACKED_DIGITS_UTF16[minute]);
-        chars[off + 5] = ':';
-        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 6) << 1), PACKED_DIGITS_UTF16[second]);
+        writeDigitPair(chars, off, hour);
+        putChar(chars, off + 2, ':');
+        writeDigitPair(chars, off + 3, minute);
+        putChar(chars, off + 5, ':');
+        writeDigitPair(chars, off + 6, second);
     }
 
     public static int writeLocalTime(char[] chars, int off, LocalTime time) {
@@ -896,263 +909,252 @@ public class IOUtils {
         return nano != 0 ? writeNano(chars, off, nano) : off;
     }
 
-    public static int writeInt64(final byte[] buf, int pos, final long value) {
+    public static int writeInt64(byte[] buf, int pos, final long value) {
         long i;
         if (value < 0) {
             if (value == Long.MIN_VALUE) {
-                System.arraycopy(MIN_LONG, 0, buf, pos, MIN_LONG.length);
-                return pos + MIN_LONG.length;
+                System.arraycopy(MIN_LONG_BYTES, 0, buf, pos, MIN_LONG_BYTES.length);
+                return pos + MIN_LONG_BYTES.length;
             }
             i = -value;
-            buf[pos++] = '-';
+            putByte(buf, pos++, (byte) ('-'));
         } else {
             i = value;
         }
 
         if (i < 1000) {
-            int v = DIGITS_K_32[(int) i];
+            int v = DIGITS_K_32[(int) i & 0x3ff];
             int start = v & 0xff;
             if (start == 0) {
-                buf[pos] = (byte) (v >> 8);
-                buf[pos + 1] = (byte) (v >> 16);
+                putShortLE(buf, pos, (short) (v >> 8));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (byte) (v >> 16);
+                putByte(buf, pos++, (byte) (v >> 16));
             }
-            buf[pos++] = (byte) (v >> 24);
+            putByte(buf, pos++, (byte) (v >> 24));
             return pos;
         }
 
         final long q1 = i / 1000;
         final int r1 = (int) (i - q1 * 1000);
-        final int v1 = DIGITS_K_32[r1];
+        final int v1 = DIGITS_K_32[r1 & 0x3ff];
         if (i < 1000000) {
-            final int v2 = DIGITS_K_32[(int) q1];
+            final int v2 = DIGITS_K_32[(int) q1 & 0x3ff];
 
             int start = v2 & 0xff;
             if (start == 0) {
-                buf[pos] = (byte) (v2 >> 8);
-                buf[pos + 1] = (byte) (v2 >> 16);
+                putShortLE(buf, pos, (short) (v2 >> 8));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (byte) (v2 >> 16);
+                putByte(buf, pos++, (byte) (v2 >> 16));
             }
-            putInt(buf, pos, v1 & 0xffffff00 | (v2 >> 24));
+            putIntLE(buf, pos, v1 & 0xffffff00 | (v2 >> 24));
             return pos + 4;
         }
 
         final long q2 = q1 / 1000;
         final int r2 = (int) (q1 - q2 * 1000);
         final long q3 = q2 / 1000;
-        final int v2 = DIGITS_K_32[r2];
+        final int v2 = DIGITS_K_32[r2 & 0x3ff];
         if (q3 == 0) {
-            final int v3 = DIGITS_K_32[(int) q2];
+            final int v3 = DIGITS_K_32[(int) q2 & 0x3ff];
             int start = v3 & 0xff;
             if (start == 0) {
-                buf[pos] = (byte) (v3 >> 8);
-                buf[pos + 1] = (byte) (v3 >> 16);
+                putShortLE(buf, pos, (short) (v3 >> 8));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (byte) (v3 >> 16);
+                putByte(buf, pos++, (byte) (v3 >> 16));
             }
-            buf[pos] = (byte) (v3 >> 24);
-            buf[pos + 1] = (byte) (v2 >> 8);
-            buf[pos + 2] = (byte) (v2 >> 16);
-            putInt(buf, pos + 3, v1 & 0xffffff00 | (v2 >> 24));
+            putByte(buf, pos, (byte) (v3 >> 24));
+            putShortLE(buf, pos + 1, (short) (v2 >> 8));
+            putIntLE(buf, pos + 3, v1 & 0xffffff00 | (v2 >> 24));
             return pos + 7;
         }
         final int r3 = (int) (q2 - q3 * 1000);
         final int q4 = (int) (q3 / 1000);
-        final int v3 = DIGITS_K_32[r3];
+        final int v3 = DIGITS_K_32[r3 & 0x3ff];
         if (q4 == 0) {
-            final int v4 = DIGITS_K_32[(int) q3];
+            final int v4 = DIGITS_K_32[(int) q3 & 0x3ff];
             final int start = v4 & 0xff;
             if (start == 0) {
-                buf[pos] = (byte) (v4 >> 8);
-                buf[pos + 1] = (byte) (v4 >> 16);
+                putShortLE(buf, pos, (short) (v4 >> 8));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (byte) (v4 >> 16);
+                putByte(buf, pos++, (byte) (v4 >> 16));
             }
-            buf[pos] = (byte) (v4 >> 24);
-            buf[pos + 1] = (byte) (v3 >> 8);
-            putInt(buf, pos + 2, ((v2 & 0x00ffff00) << 8) | (v3 >> 16));
-            putInt(buf, pos + 6, v1 & 0xffffff00 | (v2 >> 24));
+            putByte(buf, pos, (byte) (v4 >> 24));
+            putByte(buf, pos + 1, (byte) (v3 >> 8));
+            putIntLE(buf, pos + 2, ((v2 & 0x00ffff00) << 8) | (v3 >> 16));
+            putIntLE(buf, pos + 6, v1 & 0xffffff00 | (v2 >> 24));
             return pos + 10;
         }
         final int r4 = (int) (q3 - q4 * 1000);
         final int q5 = q4 / 1000;
 
-        final int v4 = DIGITS_K_32[r4];
+        final int v4 = DIGITS_K_32[r4 & 0x3ff];
         if (q5 == 0) {
-            final int v5 = DIGITS_K_32[q4];
+            final int v5 = DIGITS_K_32[q4 & 0x3ff];
             int start = v5 & 0xff;
             if (start == 0) {
-                buf[pos] = (byte) (v5 >> 8);
-                buf[pos + 1] = (byte) (v5 >> 16);
+                putShortLE(buf, pos, (short) (v5 >> 8));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (byte) (v5 >> 16);
+                putByte(buf, pos++, (byte) (v5 >> 16));
             }
-            putInt(buf, pos, v4 & 0xffffff00 | (v5 >> 24));
-            buf[pos + 4] = (byte) (v3 >> 8);
-            putInt(buf, pos + 5, ((v2 & 0x00ffff00) << 8) | (v3 >> 16));
-            putInt(buf, pos + 9, v1 & 0xffffff00 | (v2 >> 24));
+            putIntLE(buf, pos, v4 & 0xffffff00 | (v5 >> 24));
+            putByte(buf, pos + 4, (byte) (v3 >> 8));
+            putIntLE(buf, pos + 5, ((v2 & 0x00ffff00) << 8) | (v3 >> 16));
+            putIntLE(buf, pos + 9, v1 & 0xffffff00 | (v2 >> 24));
             return pos + 13;
         }
         final int r5 = q4 - q5 * 1000;
         final int q6 = q5 / 1000;
-        final int v5 = DIGITS_K_32[r5];
+        final int v5 = DIGITS_K_32[r5 & 0x3ff];
         if (q6 == 0) {
-            int v = DIGITS_K_32[q5];
+            int v = DIGITS_K_32[q5 & 0x3ff];
             final int start = v & 0xff;
             if (start == 0) {
-                buf[pos] = (byte) (v >> 8);
-                buf[pos + 1] = (byte) (v >> 16);
+                putShortLE(buf, pos, (short) (v >> 8));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (byte) (v >> 16);
+                putByte(buf, pos++, (byte) (v >> 16));
             }
-            buf[pos++] = (byte) (v >> 24);
+            putByte(buf, pos++, (byte) (v >> 24));
         } else {
-            putInt(buf, pos, DIGITS_K_32[q5 - q6 * 1000] & 0xffffff00 | (q6 + '0'));
+            putIntLE(buf, pos, DIGITS_K_32[(q5 - q6 * 1000) & 0x3ff] & 0xffffff00 | (q6 + '0'));
             pos += 4;
         }
 
-        buf[pos] = (byte) (v5 >> 8);
-        putInt(buf, pos + 1, ((v4 & 0x00ffff00) << 8) | (v5 >> 16));
-        putInt(buf, pos + 5, v3 & 0xffffff00 | (v4 >> 24));
-        buf[pos + 9] = (byte) (v2 >> 8);
-        buf[pos + 10] = (byte) (v2 >> 16);
-        putInt(buf, pos + 11, v1 & 0xffffff00 | (v2 >> 24));
+        putByte(buf, pos, (byte) (v5 >> 8));
+        putIntLE(buf, pos + 1, ((v4 & 0x00ffff00) << 8) | (v5 >> 16));
+        putIntLE(buf, pos + 5, v3 & 0xffffff00 | (v4 >> 24));
+        putShortLE(buf, pos + 9, (short) (v2 >> 8));
+        putIntLE(buf, pos + 11, v1 & 0xffffff00 | (v2 >> 24));
         return pos + 15;
     }
 
-    public static int writeInt64(final char[] buf, int pos, final long value) {
+    public static int writeInt64(char[] buf, int pos, final long value) {
         long i;
         if (value < 0) {
             if (value == Long.MIN_VALUE) {
-                for (int x = 0; x < MIN_LONG.length; x++) {
-                    buf[pos + x] = (char) MIN_LONG[x];
-                }
-                return pos + MIN_LONG.length;
+                System.arraycopy(MIN_LONG_CHARS, 0, buf, pos, MIN_LONG_CHARS.length);
+                return pos + MIN_LONG_CHARS.length;
             }
             i = -value;
-            buf[pos++] = '-';
+            putChar(buf, pos++, '-');
         } else {
             i = value;
         }
 
         if (i < 1000) {
-            long v = DIGITS_K_64[(int) i];
+            long v = DIGITS_K_64[(int) i & 0x3ff];
             int start = (byte) v;
             if (start == 0) {
-                putInt(buf, pos, (int) (v >> 16));
+                putIntLE(buf, pos, (int) (v >> 16));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (char) (v >> 32);
+                putChar(buf, pos++, (char) (v >> 32));
             }
-            buf[pos++] = (char) (v >> 48);
+            putChar(buf, pos++, (char) (v >> 48));
             return pos;
         }
 
         final long q1 = i / 1000;
         final int r1 = (int) (i - q1 * 1000);
-        final long v1 = DIGITS_K_64[r1];
+        final long v1 = DIGITS_K_64[r1 & 0x3ff];
         if (i < 1000000) {
-            final long v2 = DIGITS_K_64[(int) q1];
+            final long v2 = DIGITS_K_64[(int) q1 & 0x3ff];
             int start = (byte) v2;
             if (start == 0) {
-                putInt(buf, pos, (int) (v2 >> 16));
+                putIntLE(buf, pos, (int) (v2 >> 16));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (char) (v2 >> 32);
+                putChar(buf, pos++, (char) (v2 >> 32));
             }
-            putLong(buf, pos, v1 & 0xffffffffffff0000L | (v2 >> 48));
+            putLongLE(buf, pos, v1 & 0xffffffffffff0000L | (v2 >> 48));
             return pos + 4;
         }
 
         final long q2 = q1 / 1000;
         final int r2 = (int) (q1 - q2 * 1000);
         final long q3 = q2 / 1000;
-        final long v2 = DIGITS_K_64[r2];
+        final long v2 = DIGITS_K_64[r2 & 0x3ff];
         if (q3 == 0) {
-            final long v3 = DIGITS_K_64[(int) q2];
+            final long v3 = DIGITS_K_64[(int) q2 & 0x3ff];
             int start = (byte) v3;
             if (start == 0) {
-                putInt(buf, pos, (int) (v3 >> 16));
+                putIntLE(buf, pos, (int) (v3 >> 16));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (char) (v3 >> 32);
+                putChar(buf, pos++, (char) (v3 >> 32));
             }
-            buf[pos] = (char) (v3 >> 48);
-            putInt(buf, pos + 1, (int) (v2 >> 16));
-            putLong(buf, pos + 3, v1 & 0xffffffffffff0000L | (v2 >> 48));
+            putChar(buf, pos, (char) (v3 >> 48));
+            putIntLE(buf, pos + 1, (int) (v2 >> 16));
+            putLongLE(buf, pos + 3, v1 & 0xffffffffffff0000L | (v2 >> 48));
             return pos + 7;
         }
         final int r3 = (int) (q2 - q3 * 1000);
         final int q4 = (int) (q3 / 1000);
-        final long v3 = DIGITS_K_64[r3];
+        final long v3 = DIGITS_K_64[r3 & 0x3ff];
         if (q4 == 0) {
-            final long v4 = DIGITS_K_64[(int) q3];
+            final long v4 = DIGITS_K_64[(int) q3 & 0x3ff];
             final int start = (byte) v4;
             if (start == 0) {
-                putInt(buf, pos, (int) (v4 >> 16));
+                putIntLE(buf, pos, (int) (v4 >> 16));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (char) (v4 >> 32);
+                putChar(buf, pos++, (char) (v4 >> 32));
             }
-            buf[pos] = (char) (v4 >> 48);
-            buf[pos + 1] = (char) (v3 >> 16);
-            putLong(buf, pos + 2, ((v2 & 0x0000ffffffff0000L) << 16) | (v3 >> 32));
-            putLong(buf, pos + 6, v1 & 0xffffffffffff0000L | (v2 >> 48));
+            putChar(buf, pos, (char) (v4 >> 48));
+            putChar(buf, pos + 1, (char) (v3 >> 16));
+            putLongLE(buf, pos + 2, ((v2 & 0x0000ffffffff0000L) << 16) | (v3 >> 32));
+            putLongLE(buf, pos + 6, v1 & 0xffffffffffff0000L | (v2 >> 48));
             return pos + 10;
         }
         final int r4 = (int) (q3 - q4 * 1000);
         final int q5 = q4 / 1000;
-        final long v4 = DIGITS_K_64[r4];
+        final long v4 = DIGITS_K_64[r4 & 0x3ff];
         if (q5 == 0) {
-            final long v5 = DIGITS_K_64[q4];
+            final long v5 = DIGITS_K_64[q4 & 0x3ff];
             int start = (byte) v5;
             if (start == 0) {
-                putInt(buf, pos, (int) (v5 >> 16));
+                putIntLE(buf, pos, (int) (v5 >> 16));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (char) (v5 >> 32);
+                putChar(buf, pos++, (char) (v5 >> 32));
             }
-            buf[pos] = (char) (v5 >> 48);
-            putInt(buf, pos + 1, (int) (v4 >> 16));
-            putLong(buf, pos + 3, v3 & 0xffffffffffff0000L | (v4 >> 48));
-            putInt(buf, pos + 7, (int) (v2 >> 16));
-            putLong(buf, pos + 9, v1 & 0xffffffffffff0000L | (v2 >> 48));
+            putChar(buf, pos, (char) (v5 >> 48));
+            putIntLE(buf, pos + 1, (int) (v4 >> 16));
+            putLongLE(buf, pos + 3, v3 & 0xffffffffffff0000L | (v4 >> 48));
+            putIntLE(buf, pos + 7, (int) (v2 >> 16));
+            putLongLE(buf, pos + 9, v1 & 0xffffffffffff0000L | (v2 >> 48));
             return pos + 13;
         }
         final int r5 = q4 - q5 * 1000;
         final int q6 = q5 / 1000;
-        final long v5 = DIGITS_K_64[r5];
+        final long v5 = DIGITS_K_64[r5 & 0x3ff];
         if (q6 == 0) {
-            int v = DIGITS_K_32[q5];
+            long v = DIGITS_K_64[q5 & 0x3ff];
             final int start = (byte) v;
             if (start == 0) {
-                buf[pos] = (char) (byte) (v >> 8);
-                buf[pos + 1] = (char) (byte) (v >> 16);
+                putIntUnaligned(buf, pos, (int) (v >> 16));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (char) (byte) (v >> 16);
+                putChar(buf, pos++, (char) (v >> 32));
             }
-            buf[pos++] = (char) (v >> 24);
+            putChar(buf, pos++, (char) (v >> 48));
         } else {
-            putLong(buf, pos, DIGITS_K_64[q5 - q6 * 1000]);
-            buf[pos] = (char) (q6 + '0');
+            putLongLE(buf, pos, DIGITS_K_64[(q5 - q6 * 1000) & 0x3ff]);
+            putChar(buf, pos, (char) (q6 + '0'));
             pos += 4;
         }
 
-        putInt(buf, pos, (int) (v5 >> 16));
-        putLong(buf, pos + 2, v4 & 0xffffffffffff0000L | (v5 >> 48));
+        putIntLE(buf, pos, (int) (v5 >> 16));
+        putLongLE(buf, pos + 2, v4 & 0xffffffffffff0000L | (v5 >> 48));
 
-        buf[pos + 6] = (char) (v3 >> 16);
-        putLong(buf, pos + 7, ((v2 & 0x0000ffffffff0000L) << 16) | (v3 >> 32));
-        putLong(buf, pos + 11, v1 & 0xffffffffffff0000L | (v2 >> 48));
+        putChar(buf, pos + 6, (char) (v3 >> 16));
+        putLongLE(buf, pos + 7, ((v2 & 0x0000ffffffff0000L) << 16) | (v3 >> 32));
+        putLongLE(buf, pos + 11, v1 & 0xffffffffffff0000L | (v2 >> 48));
         return pos + 15;
     }
 
@@ -1160,103 +1162,103 @@ public class IOUtils {
         int i;
         if (value < 0) {
             i = -value;
-            buf[pos++] = '-';
+            putByte(buf, pos++, (byte) '-');
         } else {
             i = value;
         }
 
-        int v = DIGITS_K_32[i];
+        int v = DIGITS_K_32[i & 0x3ff];
         final int start = (byte) v;
         if (start == 0) {
-            putShort(buf, pos, (short) (v >> 8));
+            putShortLE(buf, pos, (short) (v >> 8));
             pos += 2;
         } else if (start == 1) {
-            buf[pos++] = (byte) (v >> 16);
+            putByte(buf, pos++, (byte) (v >> 16));
         }
-        buf[pos] = (byte) (v >> 24);
+        putByte(buf, pos, (byte) (v >> 24));
         return pos + 1;
     }
 
-    public static int writeInt8(final char[] buf, int pos, final byte value) {
+    public static int writeInt8(char[] buf, int pos, final byte value) {
         int i;
         if (value < 0) {
             i = -value;
-            buf[pos++] = '-';
+            putChar(buf, pos++, '-');
         } else {
             i = value;
         }
 
-        long v = DIGITS_K_64[i];
+        long v = DIGITS_K_64[i & 0x3ff];
         final int start = (byte) v;
         if (start == 0) {
-            putInt(buf, pos, (int) (v >> 16));
+            putIntLE(buf, pos, (int) (v >> 16));
             pos += 2;
         } else if (start == 1) {
-            buf[pos++] = (char) (v >> 32);
+            putChar(buf, pos++, (char) (v >> 32));
         }
-        buf[pos] = (char) (v >> 48);
+        putChar(buf, pos, (char) (v >> 48));
         return pos + 1;
     }
 
-    public static int writeInt16(final byte[] buf, int pos, final short value) {
+    public static int writeInt16(byte[] buf, int pos, final short value) {
         int i;
         if (value < 0) {
             i = -value;
-            buf[pos++] = '-';
+            putByte(buf, pos++, (byte) '-');
         } else {
             i = value;
         }
 
         if (i < 1000) {
-            int v = DIGITS_K_32[i];
+            int v = DIGITS_K_32[i & 0x3ff];
             final int start = (byte) v;
             if (start == 0) {
-                putShort(buf, pos, (short) (v >> 8));
+                putShortLE(buf, pos, (short) (v >> 8));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (byte) (v >> 16);
+                putByte(buf, pos++, (byte) (v >> 16));
             }
-            buf[pos] = (byte) (v >> 24);
+            putByte(buf, pos, (byte) (v >> 24));
             return pos + 1;
         }
 
         final int q1 = i / 1000;
-        final int v2 = DIGITS_K_32[q1];
+        final int v2 = DIGITS_K_32[q1 & 0x3ff];
         if ((byte) v2 == 1) {
-            buf[pos++] = (byte) (v2 >> 16);
+            putByte(buf, pos++, (byte) (v2 >> 16));
         }
-        putInt(buf, pos, (DIGITS_K_32[i - q1 * 1000]) & 0xffffff00 | (v2 >> 24));
+        putIntLE(buf, pos, (DIGITS_K_32[(i - q1 * 1000) & 0x3ff]) & 0xffffff00 | (v2 >> 24));
         return pos + 4;
     }
 
-    public static int writeInt16(final char[] buf, int pos, final short value) {
+    public static int writeInt16(char[] buf, int pos, final short value) {
         int i;
         if (value < 0) {
             i = -value;
-            buf[pos++] = '-';
+            putChar(buf, pos++, '-');
         } else {
             i = value;
         }
 
         if (i < 1000) {
-            long v = DIGITS_K_64[i];
+            long v = DIGITS_K_64[i & 0x3ff];
             final int start = (byte) v;
             if (start == 0) {
-                putInt(buf, pos, (int) (v >> 16));
+                putIntLE(buf, pos, (int) (v >> 16));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (char) (v >> 32);
+                putChar(buf, pos++, (char) (v >> 32));
             }
-            buf[pos] = (char) (v >> 48);
+            putChar(buf, pos, (char) (v >> 48));
             return pos + 1;
         }
 
         final int q1 = i / 1000;
-        final long v2 = DIGITS_K_64[q1];
+        final long v2 = DIGITS_K_64[q1 & 0x3ff];
         if ((byte) v2 == 1) {
-            buf[pos++] = (char) (v2 >> 32);
+            putChar(buf, pos++, (char) (v2 >> 32));
         }
-        putLong(buf, pos, DIGITS_K_64[i - q1 * 1000] & 0xffffffffffff0000L | (v2 >> 48));
+        putLongLE(buf, pos, DIGITS_K_64[(i - q1 * 1000) & 0x3ff] & 0xffffffffffff0000L | (v2 >> 48));
         return pos + 4;
     }
 
@@ -1268,60 +1270,60 @@ public class IOUtils {
                 return pos + MIN_INT_BYTES.length;
             }
             i = -value;
-            buf[pos++] = '-';
+            putByte(buf, pos++, (byte) ('-'));
         } else {
             i = value;
         }
 
         if (i < 1000) {
-            int v = DIGITS_K_32[i];
+            int v = DIGITS_K_32[i & 0x3ff];
             final int start = (byte) v;
             if (start == 0) {
-                putShort(buf, pos, (short) (v >> 8));
+                putShortLE(buf, pos, (short) (v >> 8));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (byte) (v >> 16);
+                putByte(buf, pos++, (byte) (v >> 16));
             }
-            buf[pos] = (byte) (v >> 24);
+            putByte(buf, pos, (byte) (v >> 24));
             return pos + 1;
         }
 
         final int q1 = i / 1000;
         final int r1 = i - q1 * 1000;
-        final int v1 = DIGITS_K_32[r1];
+        final int v1 = DIGITS_K_32[r1 & 0x3ff];
         if (i < 1000000) {
-            final int v2 = DIGITS_K_32[q1];
+            final int v2 = DIGITS_K_32[q1 & 0x3ff];
             int start = (byte) v2;
             if (start == 0) {
-                putShort(buf, pos, (short) (v2 >> 8));
+                putShortLE(buf, pos, (short) (v2 >> 8));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (byte) (v2 >> 16);
+                putByte(buf, pos++, (byte) (v2 >> 16));
             }
-            putInt(buf, pos, v1 & 0xffffff00 | (v2 >> 24));
+            putIntLE(buf, pos, v1 & 0xffffff00 | (v2 >> 24));
             return pos + 4;
         }
         final int q2 = q1 / 1000;
         final int r2 = q1 - q2 * 1000;
         final int q3 = q2 / 1000;
-        final int v2 = DIGITS_K_32[r2];
+        final int v2 = DIGITS_K_32[r2 & 0x3ff];
         if (q3 == 0) {
-            int v = DIGITS_K_32[q2];
+            int v = DIGITS_K_32[q2 & 0x3ff];
             final int start = (byte) v;
             if (start == 0) {
-                putShort(buf, pos, (short) (v >> 8));
+                putShortLE(buf, pos, (short) (v >> 8));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (byte) (v >> 16);
+                putByte(buf, pos++, (byte) (v >> 16));
             }
-            buf[pos++] = (byte) (v >> 24);
+            putByte(buf, pos++, (byte) (v >> 24));
         } else {
-            putInt(buf, pos, DIGITS_K_32[q2 - q3 * 1000] & 0xffffff00 | (q3 + '0'));
+            putIntLE(buf, pos, DIGITS_K_32[(q2 - q3 * 1000) & 0x3ff] & 0xffffff00 | (q3 + '0'));
             pos += 4;
         }
 
-        putShort(buf, pos, (short) (v2 >> 8));
-        putInt(buf, pos + 2, v1 & 0xffffff00 | (v2 >> 24));
+        putShortLE(buf, pos, (short) (v2 >> 8));
+        putIntLE(buf, pos + 2, v1 & 0xffffff00 | (v2 >> 24));
         return pos + 6;
     }
 
@@ -1333,119 +1335,197 @@ public class IOUtils {
                 return pos + MIN_INT_CHARS.length;
             }
             i = -value;
-            buf[pos++] = '-';
+            putChar(buf, pos++, '-');
         } else {
             i = value;
         }
         if (i < 1000) {
-            long v = DIGITS_K_64[i];
+            long v = DIGITS_K_64[i & 0x3ff];
             final int start = (byte) v;
             if (start == 0) {
-                putInt(buf, pos, (int) (v >> 16));
+                putIntLE(buf, pos, (int) (v >> 16));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (char) (v >> 32);
+                putChar(buf, pos++, (char) (v >> 32));
             }
-            buf[pos] = (char) (v >> 48);
+            putChar(buf, pos, (char) (v >> 48));
             return pos + 1;
         }
         final int q1 = i / 1000;
         final int r1 = i - q1 * 1000;
-        final long v1 = DIGITS_K_64[r1];
+        final long v1 = DIGITS_K_64[r1 & 0x3ff];
         if (i < 1000000) {
-            final long v2 = DIGITS_K_64[q1];
+            final long v2 = DIGITS_K_64[q1 & 0x3ff];
             int start = (byte) v2;
             if (start == 0) {
-                putInt(buf, pos, (int) (v2 >> 16));
+                putIntLE(buf, pos, (int) (v2 >> 16));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (char) (v2 >> 32);
+                putChar(buf, pos++, (char) (v2 >> 32));
             }
-            putLong(buf, pos, v1 & 0xffffffffffff0000L | (v2 >> 48));
+            putLongLE(buf, pos, v1 & 0xffffffffffff0000L | (v2 >> 48));
             return pos + 4;
         }
         final int q2 = q1 / 1000;
         final int r2 = q1 - q2 * 1000;
         final int q3 = q2 / 1000;
-        final long v2 = DIGITS_K_64[r2];
+        final long v2 = DIGITS_K_64[r2 & 0x3ff];
         if (q3 == 0) {
-            long v = DIGITS_K_64[q2];
+            long v = DIGITS_K_64[q2 & 0x3ff];
             final int start = (byte) v;
             if (start == 0) {
-                putInt(buf, pos, (int) (v >> 16));
+                putIntLE(buf, pos, (int) (v >> 16));
                 pos += 2;
             } else if (start == 1) {
-                buf[pos++] = (char) (v >> 32);
+                putChar(buf, pos++, (char) (v >> 32));
             }
-            buf[pos++] = (char) (v >> 48);
+            putChar(buf, pos++, (char) (v >> 48));
         } else {
-            putLong(buf, pos, DIGITS_K_64[q2 - q3 * 1000]);
-            buf[pos] = (char) (q3 + '0');
+            putLongLE(buf, pos, DIGITS_K_64[(q2 - q3 * 1000) & 0x3ff]);
+            putChar(buf, pos, (char) (q3 + '0'));
             pos += 4;
         }
 
-        putInt(buf, pos, (int) (v2 >> 16));
-        putLong(buf, pos + 2, v1 & 0xffffffffffff0000L | (v2 >> 48));
+        putIntLE(buf, pos, (int) (v2 >> 16));
+        putLongLE(buf, pos + 2, v1 & 0xffffffffffff0000L | (v2 >> 48));
         return pos + 6;
     }
 
-    public static void putShort(byte[] buf, int pos, short v) {
-        UNSAFE.putShort(
-                buf,
-                ARRAY_BYTE_BASE_OFFSET + pos,
-                BIG_ENDIAN ? Short.reverseBytes(v) : v
-        );
+    public static byte getByte(byte[] str, int pos) {
+        return UNSAFE.getByte(str, ARRAY_CHAR_BASE_OFFSET + pos);
     }
 
-    public static void putInt(byte[] buf, int pos, int v) {
-        UNSAFE.putInt(
-                buf,
-                ARRAY_BYTE_BASE_OFFSET + pos,
-                BIG_ENDIAN ? Integer.reverseBytes(v) : v
-        );
+    public static char getChar(char[] buf, int pos) {
+        return UNSAFE.getChar(buf, ARRAY_CHAR_BASE_OFFSET + ((long) pos << 1));
     }
 
-    public static void putInt(char[] buf, int pos, int v) {
-        UNSAFE.putInt(
-                buf,
-                ARRAY_CHAR_BASE_OFFSET + ((long) pos << 1),
-                BIG_ENDIAN ? Integer.reverseBytes(v) : v
-        );
+    public static char getChar(byte[] str, int pos) {
+        return UNSAFE.getChar(str, ARRAY_CHAR_BASE_OFFSET + ((long) pos << 1));
+    }
+
+    public static void putByte(byte[] buf, int pos, byte v) {
+        UNSAFE.putByte(buf, ARRAY_CHAR_BASE_OFFSET + pos, v);
+    }
+
+    public static void putChar(char[] buf, int pos, char v) {
+        UNSAFE.putChar(buf, ARRAY_CHAR_BASE_OFFSET + ((long) pos << 1), v);
+    }
+
+    public static void putShortBE(byte[] buf, int pos, short v) {
+        UNSAFE.putShort(buf, ARRAY_BYTE_BASE_OFFSET + pos, convEndian(true, v));
+    }
+
+    public static void putShortLE(byte[] buf, int pos, short v) {
+        UNSAFE.putShort(buf, ARRAY_BYTE_BASE_OFFSET + pos, convEndian(false, v));
+    }
+
+    public static void putIntBE(byte[] buf, int pos, int v) {
+        UNSAFE.putInt(buf, ARRAY_BYTE_BASE_OFFSET + pos, convEndian(true, v));
+    }
+
+    public static void putIntLE(byte[] buf, int pos, int v) {
+        UNSAFE.putInt(buf, ARRAY_BYTE_BASE_OFFSET + pos, convEndian(false, v));
+    }
+
+    public static void putIntLE(char[] buf, int pos, int v) {
+        UNSAFE.putInt(buf, ARRAY_CHAR_BASE_OFFSET + ((long) pos << 1), convEndian(false, v));
+    }
+
+    public static void putShortUnaligned(byte[] buf, int pos, short v) {
+        UNSAFE.putShort(buf, ARRAY_CHAR_BASE_OFFSET + pos, v);
     }
 
     public static void putIntUnaligned(char[] buf, int pos, int v) {
         UNSAFE.putInt(buf, ARRAY_CHAR_BASE_OFFSET + ((long) pos << 1), v);
     }
 
-    public static void putLong(char[] buf, int pos, long v) {
-        UNSAFE.putLong(
-                buf,
-                ARRAY_CHAR_BASE_OFFSET + ((long) pos << 1),
-                BIG_ENDIAN ? Long.reverseBytes(v) : v
-        );
+    public static void putIntUnaligned(byte[] buf, int pos, int v) {
+        UNSAFE.putInt(buf, ARRAY_CHAR_BASE_OFFSET + pos, v);
+    }
+
+    public static void putLongLE(char[] buf, int pos, long v) {
+        UNSAFE.putLong(buf, ARRAY_CHAR_BASE_OFFSET + ((long) pos << 1), convEndian(false, v));
+    }
+
+    public static void putLongUnaligned(char[] buf, int pos, long v) {
+        UNSAFE.putLong(buf, ARRAY_CHAR_BASE_OFFSET + ((long) pos << 1), v);
+    }
+
+    public static void putLongBE(byte[] buf, int pos, long v) {
+        UNSAFE.putLong(buf, ARRAY_CHAR_BASE_OFFSET + pos, convEndian(true, v));
+    }
+
+    public static void putLongLE(byte[] buf, int pos, long v) {
+        UNSAFE.putLong(buf, ARRAY_CHAR_BASE_OFFSET + pos, convEndian(false, v));
+    }
+
+    public static int putBoolean(byte[] bytes, int off, boolean v) {
+        long address = ARRAY_CHAR_BASE_OFFSET + off;
+        if (v) {
+            UNSAFE.putInt(bytes, address, TRUE);
+            return off + 4;
+        } else {
+            UNSAFE.putByte(bytes, address, (byte) 'f');
+            UNSAFE.putInt(bytes, address + 1, ALSE);
+            return off + 5;
+        }
+    }
+
+    public static int putBoolean(char[] chars, int off, boolean v) {
+        long address = ARRAY_CHAR_BASE_OFFSET + ((long) off << 1);
+        if (v) {
+            UNSAFE.putLong(chars, address, TRUE_64);
+            return off + 4;
+        } else {
+            UNSAFE.putChar(chars, address, 'f');
+            UNSAFE.putLong(chars, address + 2, ALSE_64);
+            return off + 5;
+        }
+    }
+
+    public static boolean isALSE(byte[] buf, int pos) {
+        return getIntUnaligned(buf, pos) == ALSE;
+    }
+
+    public static boolean isALSE(char[] buf, int pos) {
+        return getLongUnaligned(buf, pos) == ALSE_64;
+    }
+
+    public static boolean isNULL(byte[] buf, int pos) {
+        return getIntUnaligned(buf, pos) == NULL_32;
+    }
+
+    public static boolean isNULL(char[] buf, int pos) {
+        return getLongUnaligned(buf, pos) == NULL_64;
+    }
+
+    public static void putNULL(byte[] buf, int pos) {
+        UNSAFE.putInt(buf, ARRAY_CHAR_BASE_OFFSET + pos, NULL_32);
+    }
+
+    public static void putNULL(char[] buf, int pos) {
+        UNSAFE.putLong(buf, ARRAY_CHAR_BASE_OFFSET + ((long) pos << 1), NULL_64);
     }
 
     public static int digit4(char[] chars, int off) {
-        long x = UNSAFE.getLong(chars, ARRAY_CHAR_BASE_OFFSET + ((long) off << 1));
-        if (BIG_ENDIAN) {
-            x = Long.reverseBytes(x);
-        }
-        long d;
-        if ((((x & 0xF000F000F000F0L) - 0x30003000300030L)
-                | (((d = x & 0x0F000F000F000FL) + 0x06000600060006L) & 0xF000F000F000F0L)) != 0) {
+        char c0, c1, c2, c3;
+        c0 = getChar(chars, off);
+        c1 = getChar(chars, off + 1);
+        c2 = getChar(chars, off + 2);
+        c3 = getChar(chars, off + 3);
+        if ((c0 | c1 | c2 | c3) > 0x7f) {
             return -1;
         }
-        return (int) (((d & 0xF) << 10) + ((d & 0xF) << 3) - ((d & 0xF) << 5) // (d & 0xF) * 1000
-                + ((d & 0xF0000) >> 10) + ((d & 0xF0000) >> 11) + ((d & 0xF0000) >> 14) // ((d & 0xF0000) >> 16) * 100
-                + ((d & 0xF00000000L) >> 29) + ((d & 0xF00000000L) >> 31) // ((d & 0xF00000000L) >> 32) * 10
-                + (d >> 48));
+        return digit4(c0 | (c1 << 8) | (c2 << 16) | (c3 << 24));
     }
 
     public static int digit4(byte[] bytes, int off) {
-        int x = UNSAFE.getInt(bytes, ARRAY_BYTE_BASE_OFFSET + off);
-        if (BIG_ENDIAN) {
-            x = Integer.reverseBytes(x);
-        }
+        return digit4(
+                getIntLE(bytes, off)
+        );
+    }
+
+    private static int digit4(int x) {
         /*
             Here we are doing a 4-Byte Vector operation on the Int type.
 
@@ -1491,29 +1571,23 @@ public class IOUtils {
     }
 
     public static int digit3(char[] chars, int off) {
-        long address = ARRAY_CHAR_BASE_OFFSET + ((long) off << 1);
-        int i = UNSAFE.getInt(chars, address);
-        short s = UNSAFE.getShort(chars, address + 4);
-        if (BIG_ENDIAN) {
-            i = Integer.reverseBytes(i);
-            s = Short.reverseBytes(s);
-        }
-        long x = (((long) s) << 32) | i; // reuse
-        long d;
-        if ((((x & 0xF000F000F0L) - 0x3000300030L) | (((d = x & 0x0F000F000FL) + 0x0600060006L) & 0xF000F000F0L)) != 0) {
+        char c0 = getChar(chars, off), c1 = getChar(chars, off + 1), c2 = getChar(chars, off + 2);
+        if ((c0 | c1 | c2) > 0x7F) {
             return -1;
         }
-        return (int) (((d & 0xF) << 6) + ((d & 0xF) << 5) + ((d & 0xF) << 2) // (d & 0xF) * 100
-                + ((d & 0xF0000L) >> 13) + ((d & 0xF0000L) >> 15) // ((d & 0xF0000) >> 16) * 10
-                + (d >> 32));
+        return digit3(
+                c0 | (c1 << 8) | (c2 << 16)
+        );
     }
 
     public static int digit3(byte[] bytes, int off) {
-        int x = UNSAFE.getShort(bytes, ARRAY_BYTE_BASE_OFFSET + off);
-        if (BIG_ENDIAN) {
-            x = Short.reverseBytes((short) x);
-        }
-        x |= UNSAFE.getByte(bytes, ARRAY_BYTE_BASE_OFFSET + off + 2) << 16;
+        return digit3(
+                getShortLE(bytes, off)
+                        | (UNSAFE.getByte(bytes, ARRAY_BYTE_BASE_OFFSET + off + 2) << 16)
+        );
+    }
+
+    private static int digit3(int x) {
         int d;
         if ((((x & 0xF0F0F0) - 0x303030) | (((d = x & 0x0F0F0F) + 0x060606) & 0xF0F0F0)) != 0) {
             return -1;
@@ -1524,30 +1598,25 @@ public class IOUtils {
     }
 
     public static int digit2(char[] chars, int off) {
-        int x = UNSAFE.getInt(chars, ARRAY_CHAR_BASE_OFFSET + ((long) off << 1));
-        if (BIG_ENDIAN) {
-            x = Integer.reverseBytes(x);
-        }
-        int d;
-        if ((((x & 0xF000F0) - 0x300030) | (((d = x & 0x0F000F) + 0x060006) & 0xF000F0)) != 0) {
+        char c0 = getChar(chars, off), c1 = getChar(chars, off + 1);
+        if ((c0 | c1) > 0x7f) {
             return -1;
         }
-        return ((d & 0xF) << 3) + ((d & 0xF) << 1) // (d & 0xF) * 10
-                + (d >> 16);
+        return digit2(c0 | (c1 << 8));
     }
 
     public static int digit2(byte[] bytes, int off) {
-        short x = UNSAFE.getShort(bytes, ARRAY_BYTE_BASE_OFFSET + off);
-        if (BIG_ENDIAN) {
-            x = Short.reverseBytes(x);
-        }
+        return digit2(
+                getShortLE(bytes, off)
+        );
+    }
+
+    private static int digit2(int x) {
         int d;
-        if ((((x & 0xF0F0) - 0x3030) | (((d = x & 0x0F0F) + 0x0606) & 0xF0F0)) != 0
-        ) {
+        if ((((x & 0xF0F0) - 0x3030) | (((d = x & 0x0F0F) + 0x0606) & 0xF0F0)) != 0) {
             return -1;
         }
-        return ((d & 0xF) << 3) + ((d & 0xF) << 1)  // (d & 0xF) * 10
-                + (d >> 8);
+        return (d & 0xF) * 10 + (d >> 8);
     }
 
     public static int digit1(char[] chars, int off) {
@@ -1560,19 +1629,48 @@ public class IOUtils {
         return d >= 0 && d <= 9 ? d : -1;
     }
 
-    public static int indexOfChar(byte[] value, int ch, int fromIndex) {
-        return indexOfChar(value, ch, fromIndex, value.length);
-    }
-
-    public static int indexOfChar(byte[] value, int ch, int fromIndex, int max) {
+    public static int indexOfQuote(byte[] value, int quote, int fromIndex, int max) {
         if (INDEX_OF_CHAR_LATIN1 == null) {
-            return indexOfChar0(value, ch, fromIndex, max);
+            return indexOfQuote0(value, quote, fromIndex, max);
         }
         try {
-            return (int) INDEX_OF_CHAR_LATIN1.invokeExact(value, ch, fromIndex, max);
+            return (int) INDEX_OF_CHAR_LATIN1.invokeExact(value, quote, fromIndex, max);
         } catch (Throwable e) {
             throw new JSONException(e.getMessage());
         }
+    }
+    static int indexOfQuote0(byte[] value, int quote, int fromIndex, int max) {
+        int i = fromIndex;
+        long address = ARRAY_BYTE_BASE_OFFSET + fromIndex;
+        int upperBound = fromIndex + ((max - fromIndex) & ~7);
+        long vectorQuote = quote == '\'' ? 0x2727_2727_2727_2727L : 0x2222_2222_2222_2222L;
+        while (i < upperBound && notContains(UNSAFE.getLong(value, address), vectorQuote)) {
+            i += 8;
+            address += 8;
+        }
+        return indexOfChar0(value, quote, i, max);
+    }
+
+    public static int indexOfSlash(byte[] value, int fromIndex, int max) {
+        if (INDEX_OF_CHAR_LATIN1 == null) {
+            return indexOfSlashV(value, fromIndex, max);
+        }
+        try {
+            return (int) INDEX_OF_CHAR_LATIN1.invokeExact(value, (int) '\\', fromIndex, max);
+        } catch (Throwable e) {
+            throw new JSONException(e.getMessage());
+        }
+    }
+
+    public static int indexOfSlashV(byte[] value, int fromIndex, int max) {
+        int i = fromIndex;
+        long address = ARRAY_BYTE_BASE_OFFSET + fromIndex;
+        int upperBound = fromIndex + ((max - fromIndex) & ~7);
+        while (i < upperBound && notContains(UNSAFE.getLong(value, address), 0x5C5C5C5C5C5C5C5CL)) {
+            i += 8;
+            address += 8;
+        }
+        return indexOfChar0(value, '\\', i, max);
     }
 
     private static int indexOfChar0(byte[] value, int ch, int fromIndex, int max) {
@@ -1584,27 +1682,228 @@ public class IOUtils {
         return -1;
     }
 
-    public static long hexDigit8(byte[] bytes, int offset) {
-        long v = Long.reverseBytes(UNSAFE.getLong(bytes, ARRAY_BYTE_BASE_OFFSET + offset));
-        v = (v & 0x0F0F0F0F_0F0F0F0FL) + ((((v & 0x40404040_40404040L) >> 2) | ((v & 0x40404040_40404040L) << 1)) >>> 4);
-        v = ((v >>> 28) & 0xF0000000L)
-                + ((v >>> 24) & 0xF000000)
-                + ((v >>> 20) & 0xF00000)
-                + ((v >>> 16) & 0xF0000)
-                + ((v >>> 12) & 0xF000)
-                + ((v >>> 8) & 0xF00)
-                + ((v >>> 4) & 0xF0)
-                + (v & 0xF);
-        return v;
+    private static boolean notContains(long v, long quote) {
+        /*
+          for (int i = 0; i < 8; ++i) {
+            byte c = (byte) v;
+            if (c == quote) {
+                return true;
+            }
+            v >>>= 8;
+          }
+          return false;
+         */
+        long x = v ^ quote;
+        return (((x - 0x0101010101010101L) & ~x) & 0x8080808080808080L) == 0;
     }
 
     public static int hexDigit4(byte[] bytes, int offset) {
-        int v = Integer.reverseBytes(UNSAFE.getInt(bytes, ARRAY_BYTE_BASE_OFFSET + offset));
+        int v = getIntLE(bytes, offset);
         v = (v & 0x0F0F0F0F) + ((((v & 0x40404040) >> 2) | ((v & 0x40404040) << 1)) >>> 4);
-        v = ((v >>> 12) & 0xF000)
-                + ((v >>> 8) & 0xF00)
-                + ((v >>> 4) & 0xF0)
-                + (v & 0xF);
-        return v;
+        return ((v & 0xF000000) >>> 24) + ((v & 0xF0000) >>> 12) + (v & 0xF00) + ((v & 0xF) << 12);
+    }
+
+    public static int hexDigit4(char[] bytes, int offset) {
+        long v = getLongLE(bytes, offset);
+        v = (v & 0x000F_000F_000F_000FL) + ((((v & 0x0004_0004_0004_00040L) >> 2) | ((v & 0x0004_0004_0004_00040L) << 1)) >>> 4);
+        return (int) (((v & 0xF_0000_0000_0000L) >>> 48) + ((v & 0xF_0000_0000L) >>> 28) + ((v & 0xF_0000) >> 8) + ((v & 0xF) << 12));
+    }
+
+    public static boolean isDigit(int ch) {
+        return ch >= '0' && ch <= '9';
+    }
+
+    public static short getShortBE(byte[] bytes, int offset) {
+        return convEndian(true,
+                UNSAFE.getShort(bytes, ARRAY_BYTE_BASE_OFFSET + offset));
+    }
+
+    public static short getShortLE(byte[] bytes, int offset) {
+        return convEndian(false,
+                UNSAFE.getShort(bytes, ARRAY_BYTE_BASE_OFFSET + offset));
+    }
+
+    public static boolean isUTF8BOM(byte[] bytes, int off) {
+        // EF BB BF
+        return ((getIntLE(bytes, off)) & 0xFFFFFF) == 0xBFBBEF;
+    }
+
+    public static int getIntBE(byte[] bytes, int offset) {
+        return convEndian(true,
+                UNSAFE.getInt(bytes, ARRAY_BYTE_BASE_OFFSET + offset));
+    }
+
+    public static int getIntLE(byte[] bytes, int offset) {
+        return convEndian(false,
+                UNSAFE.getInt(bytes, ARRAY_BYTE_BASE_OFFSET + offset));
+    }
+
+    public static int getIntLE(char[] bytes, int offset) {
+        return convEndian(false,
+                UNSAFE.getInt(bytes, ARRAY_CHAR_BASE_OFFSET + ((long) offset << 1)));
+    }
+
+    public static int getIntUnaligned(byte[] bytes, int offset) {
+        return UNSAFE.getInt(bytes, ARRAY_BYTE_BASE_OFFSET + offset);
+    }
+
+    public static int getIntUnaligned(char[] bytes, int offset) {
+        return UNSAFE.getInt(bytes, ARRAY_CHAR_BASE_OFFSET + ((long) offset << 1));
+    }
+
+    public static long getLongBE(byte[] bytes, int offset) {
+        return convEndian(true,
+                UNSAFE.getLong(bytes, ARRAY_BYTE_BASE_OFFSET + offset));
+    }
+
+    public static long getLongUnaligned(byte[] bytes, int offset) {
+        return UNSAFE.getLong(bytes, ARRAY_BYTE_BASE_OFFSET + offset);
+    }
+
+    public static long getLongUnaligned(char[] bytes, int offset) {
+        return UNSAFE.getLong(bytes, ARRAY_CHAR_BASE_OFFSET + ((long) offset << 1));
+    }
+
+    public static long getLongLE(byte[] bytes, int offset) {
+        return convEndian(false,
+                UNSAFE.getLong(bytes, ARRAY_BYTE_BASE_OFFSET + offset));
+    }
+
+    public static long getLongLE(char[] bytes, int offset) {
+        return convEndian(false,
+                UNSAFE.getLong(bytes, ARRAY_CHAR_BASE_OFFSET + ((long) offset << 1)));
+    }
+
+    public static short hex2(int i) {
+        i = ((i & 0xF0) >> 4) | ((i & 0xF) << 8);
+        int m = (i + 0x06060606) & 0x10101010;
+        return (short) (((m << 1) + (m >> 1) - (m >> 4))
+                + 0x30303030 + i);
+    }
+
+    public static short hex2U(int i) {
+        i = ((i & 0xF0) >> 4) | ((i & 0xF) << 8);
+        int m = (i + 0x06060606) & 0x10101010;
+        return (short) (((m >> 1) - (m >> 4))
+                + 0x30303030 + i);
+    }
+
+    public static int utf16Hex2(int i) {
+        // 0x000F000F
+        i = ((i & 0xF0) >> 4) | ((i & 0xF) << 16);
+        int m = (i + 0x00060006) & 0x00100010;
+        return ((m << 1) + (m >> 1) - (m >> 4))
+                + 0x00300030 + i;
+    }
+
+    public static int hex4U(int i) {
+        i = reverseBytesExpand(i);
+        /*
+            0  = 0b0000_0000 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 0
+            1  = 0b0000_0001 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 1
+            2  = 0b0000_0010 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 2
+            3  = 0b0000_0011 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 3
+            4  = 0b0000_0100 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 4
+            5  = 0b0000_0101 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 5
+            6  = 0b0000_0110 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 6
+            7  = 0b0000_0111 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 7
+            8  = 0b0000_1000 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 8
+            9  = 0b0000_1001 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 9
+            10 = 0b0000_1010 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => A
+            11 = 0b0000_1011 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => B
+            12 = 0b0000_1100 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => C
+            13 = 0b0000_1101 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => D
+            14 = 0b0000_1110 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => E
+            15 = 0b0000_1111 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => F
+         */
+        int m = (i + 0x06060606) & 0x10101010;
+        return ((m >> 1) - (m >> 4))
+                + 0x30303030
+                + i;
+    }
+
+    public static long utf16Hex4U(long i) {
+        i = utf16ReverseBytesExpand(i);
+        /*
+            0  = 0b0000_0000 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 0
+            1  = 0b0000_0001 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 1
+            2  = 0b0000_0010 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 2
+            3  = 0b0000_0011 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 3
+            4  = 0b0000_0100 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 4
+            5  = 0b0000_0101 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 5
+            6  = 0b0000_0110 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 6
+            7  = 0b0000_0111 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 7
+            8  = 0b0000_1000 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 8
+            9  = 0b0000_1001 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 0 + 0x30 + (x & 0xF) => 9
+            10 = 0b0000_1010 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => A
+            11 = 0b0000_1011 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => B
+            12 = 0b0000_1100 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => C
+            13 = 0b0000_1101 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => D
+            14 = 0b0000_1110 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => E
+            15 = 0b0000_1111 => m = ((x + 6) & 0x10); (m >> 1) - (m >> 4) => 7 + 0x30 + (x & 0xF) => F
+         */
+        long m = (i + 0x00060006_00060006L) & 0x00100010_00100010L;
+        return ((m >> 1) - (m >> 4))
+                + 0x00300030_00300030L
+                + i;
+    }
+
+    private static int reverseBytesExpand(int i) {
+        // i = Integer.reverseBytes(Integer.expand(i, 0xF0F0F0F0));
+        i = ((i & 0xF000) >> 12) | (i & 0xF00) | ((i & 0xF0) << 12) | ((i & 0xF) << 24);
+        return i;
+    }
+
+    private static long utf16ReverseBytesExpand(long i) {
+        // i = Long.reverseBytes(Long.expand(i, 0x00F000F0_00F000F0));
+        return ((i & 0xF000L) >> 12) | ((i & 0xF00L) << 8) | ((i & 0xF0L) << 28) | ((i & 0xFL) << 48);
+    }
+
+    static int convEndian(boolean big, int n) {
+        return big == BIG_ENDIAN ? n : Integer.reverseBytes(n);
+    }
+
+    static long convEndian(boolean big, long n) {
+        return big == BIG_ENDIAN ? n : Long.reverseBytes(n);
+    }
+
+    static short convEndian(boolean big, short n) {
+        return big == BIG_ENDIAN ? n : Short.reverseBytes(n);
+    }
+
+    public static boolean isLatin1(char[] chars, int off, int len) {
+        int end = off + len;
+        int upperBound = off + (len & ~7);
+        long address = ARRAY_CHAR_BASE_OFFSET + off;
+        while (off < upperBound
+                && (convEndian(false, (UNSAFE.getLong(chars, address) | UNSAFE.getLong(chars, address + 8))) & 0xFF00FF00FF00FF00L) == 0
+        ) {
+            address += 16;
+            off += 8;
+        }
+        while (off++ < end) {
+            if ((convEndian(false, UNSAFE.getShort(chars, address)) & 0xFF00) != 0) {
+                return false;
+            }
+            address += 2;
+        }
+        return true;
+    }
+
+    public static boolean isASCII(byte[] bytes, int off, int len) {
+        int end = off + len;
+        int upperBound = off + (len & ~7);
+        long address = ARRAY_BYTE_BASE_OFFSET + off;
+        while (off < upperBound && (UNSAFE.getLong(bytes, address) & 0x8080808080808080L) == 0) {
+            address += 8;
+            off += 8;
+        }
+
+        while (off++ < end) {
+            if ((UNSAFE.getByte(bytes, address++) & 0x80) != 0) {
+                return false;
+            }
+        }
+        return true;
     }
 }
